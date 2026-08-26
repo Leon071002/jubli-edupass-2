@@ -129,7 +129,7 @@
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;
 
-            const userDoc = await getDoc(doc(db, "users", user.uid));
+            const userDoc = await getDoc(doc(db, "Users", user.uid));
             
             if (userDoc.exists()) {
                 const role = userDoc.data().role;
