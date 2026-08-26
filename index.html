@@ -4,11 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>School Visitor Management System</title>
-    <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- QR Code Generator -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <!-- Camera Scanner -->
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 </head>
 <body class="bg-gray-100 min-h-screen text-gray-800 font-sans">
@@ -19,99 +16,85 @@
             <h1 class="text-2xl font-bold text-center mb-1 text-blue-600">Visitor Pass System</h1>
             <p class="text-xs text-gray-500 text-center mb-6">School Security & Admin Portal</p>
             <div class="space-y-4">
-                <input type="text" placeholder="Username" value="admin" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <input type="password" placeholder="Password" value="password" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <input type="text" placeholder="Username" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                <input type="password" placeholder="Password" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500">
                 <div class="flex flex-col gap-2 pt-2">
-                    <button onclick="login('staff')" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 shadow">
-                        Login as Staff / Admin
-                    </button>
-                    <button onclick="login('security')" class="w-full bg-gray-800 text-white font-bold py-3 rounded-lg hover:bg-gray-900 shadow">
-                        Login as Security Guard
-                    </button>
+                    <button onclick="login('staff')" class="w-full bg-blue-500 text-white font-bold py-2 rounded-lg hover:bg-blue-600 shadow">Staff (Request Pass)</button>
+                    <button onclick="login('admin')" class="w-full bg-purple-600 text-white font-bold py-2 rounded-lg hover:bg-purple-700 shadow">Head Admin (Approve)</button>
+                    <button onclick="login('security')" class="w-full bg-gray-800 text-white font-bold py-2 rounded-lg hover:bg-gray-900 shadow">Security Guard (Scan)</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- STAFF / ADMIN DASHBOARD -->
+    <!-- STAFF SCREEN (REQUEST ONLY) -->
     <div id="staff-screen" class="hidden flex-col min-h-screen">
         <header class="bg-blue-600 text-white p-4 flex justify-between items-center shadow-md">
-            <h1 class="font-bold text-lg">Staff Pass Generator</h1>
+            <h1 class="font-bold text-lg">Staff Pass Request</h1>
             <button onclick="logout()" class="text-sm underline bg-blue-700 px-3 py-1 rounded">Logout</button>
         </header>
-        
         <main class="flex-1 p-4 w-full max-w-md mx-auto space-y-6">
             <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                <h2 class="font-bold text-gray-700 mb-4 border-b pb-2">New Visitor Pass</h2>
+                <h2 class="font-bold text-gray-700 mb-4 border-b pb-2">Request Visitor Pass</h2>
                 <div class="space-y-3">
-                    <div>
-                        <label class="text-xs font-bold text-gray-500">VISITOR NAME</label>
-                        <input type="text" id="v-name" placeholder="John Doe" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-                    </div>
-                    <div>
-                        <label class="text-xs font-bold text-gray-500">WHATSAPP PHONE (WITH COUNTRY CODE)</label>
-                        <input type="tel" id="v-phone" placeholder="60123456789" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-                    </div>
-                    <div>
-                        <label class="text-xs font-bold text-gray-500">HOST NAME / TEACHER</label>
-                        <input type="text" id="v-host" placeholder="Mr. Smith" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-                    </div>
-                    <div>
-                        <label class="text-xs font-bold text-gray-500">VISIT DURATION</label>
-                        <select id="v-duration" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                            <option value="1">1 Hour</option>
-                            <option value="2">2 Hours</option>
-                            <option value="3">3 Hours</option>
-                            <option value="4">4 Hours</option>
-                            <option value="5">Whole Day</option>
-                        </select>
-                    </div>
-                    <button onclick="generatePass()" class="w-full bg-green-600 text-white font-bold py-3 rounded-lg hover:bg-green-700 shadow mt-2 flex justify-center items-center gap-2">
-                        <span>📱</span> Generate & Send WhatsApp
+                    <input type="text" id="v-name" placeholder="Visitor Name" class="w-full p-2.5 border rounded-lg outline-none">
+                    <input type="tel" id="v-phone" placeholder="WhatsApp Phone (e.g. 60123456789)" class="w-full p-2.5 border rounded-lg outline-none">
+                    <input type="text" id="v-host" placeholder="Host / Teacher" class="w-full p-2.5 border rounded-lg outline-none">
+                    <select id="v-duration" class="w-full p-2.5 border rounded-lg outline-none bg-white">
+                        <option value="1">1 Hour</option>
+                        <option value="2">2 Hours</option>
+                        <option value="5">Whole Day</option>
+                    </select>
+                    <button onclick="requestPass()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 shadow mt-2">
+                        Submit for Admin Approval
                     </button>
                 </div>
             </div>
+            <div id="request-success" class="hidden bg-green-100 p-4 rounded-xl text-green-800 text-center font-bold border border-green-200">
+                ✅ Request sent to Head Admin!
+            </div>
+        </main>
+    </div>
 
-            <div id="qr-result" class="hidden bg-white p-6 rounded-xl shadow-sm border border-gray-200 text-center flex-col items-center">
-                <h3 class="font-bold text-green-600 mb-1">Pass Created & WhatsApp Opened!</h3>
-                <p class="text-xs text-gray-500 mb-4">You can also let the visitor scan this QR code directly off your screen if needed.</p>
-                <div id="qrcode" class="p-3 bg-gray-50 rounded-lg border mb-4"></div>
-                <button onclick="resetForm()" class="text-blue-600 font-bold text-sm underline">Create Another Pass</button>
+    <!-- HEAD ADMIN SCREEN (APPROVAL DASHBOARD) -->
+    <div id="admin-screen" class="hidden flex-col min-h-screen">
+        <header class="bg-purple-600 text-white p-4 flex justify-between items-center shadow-md">
+            <h1 class="font-bold text-lg">Admin Approval Board</h1>
+            <button onclick="logout()" class="text-sm underline bg-purple-700 px-3 py-1 rounded">Logout</button>
+        </header>
+        <main class="flex-1 p-4 w-full max-w-md mx-auto space-y-4">
+            <h2 class="font-bold text-gray-700">Pending Requests</h2>
+            <div id="pending-list" class="space-y-3">
+                <!-- Pending items will load here -->
             </div>
         </main>
     </div>
 
     <!-- SECURITY SCANNER SCREEN -->
     <div id="security-screen" class="hidden flex-col min-h-screen bg-gray-900 text-white">
+        <!-- (Same Security HTML as before) -->
         <header class="bg-gray-800 p-4 flex justify-between items-center shadow-md">
             <h1 class="font-bold text-lg">Gate Security Scanner</h1>
             <button onclick="logout()" class="text-sm underline bg-gray-700 px-3 py-1 rounded">Logout</button>
         </header>
-        
         <main class="flex-1 p-4 flex flex-col items-center justify-center w-full max-w-md mx-auto space-y-4">
-            <div class="w-full bg-black rounded-xl overflow-hidden shadow-lg border-2 border-gray-700 min-h-[280px] relative flex flex-col items-center justify-center">
+            <div class="w-full bg-black rounded-xl overflow-hidden border-2 border-gray-700 min-h-[280px]">
                 <div id="reader" class="w-full"></div>
             </div>
             <div class="w-full flex gap-2">
-                <button onclick="startScanner()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 shadow">
-                    Start Camera
-                </button>
-                <button onclick="stopScanner()" class="w-full bg-gray-700 text-white font-bold py-3 rounded-xl hover:bg-gray-600 shadow">
-                    Stop Camera
-                </button>
+                <button onclick="startScanner()" class="w-full bg-blue-600 font-bold py-3 rounded-xl">Start</button>
+                <button onclick="stopScanner()" class="w-full bg-gray-700 font-bold py-3 rounded-xl">Stop</button>
             </div>
-            <div id="scan-status" class="w-full p-4 rounded-xl text-center text-sm bg-gray-800 text-gray-300 min-h-[60px] flex items-center justify-center">
-                Ready to scan QR Code...
+            <div id="scan-status" class="w-full p-4 rounded-xl text-center text-sm bg-gray-800 text-gray-300 min-h-[60px]">
+                Ready to scan...
             </div>
         </main>
     </div>
 
-    <!-- FIREBASE AND JAVASCRIPT LOGIC -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, doc, updateDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, doc, updateDoc, getDocs, query, where, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // Your exact config
         const firebaseConfig = {
             apiKey: "AIzaSyDj_w9fbNE34dKQxSjRbKv1PEmLj69HeeQ",
             authDomain: "jubli-edupass.firebaseapp.com",
@@ -124,129 +107,131 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-
         let html5QrcodeScanner = null;
 
-        window.generatePass = async function() {
+        // 1. STAFF REQUESTS PASS
+        window.requestPass = async function() {
             const name = document.getElementById('v-name').value.trim();
             const phone = document.getElementById('v-phone').value.trim();
             const host = document.getElementById('v-host').value.trim();
             const duration = parseInt(document.getElementById('v-duration').value);
 
-            if(!name || !phone || !host) {
-                return alert("Please fill in all fields.");
-            }
+            if(!name || !phone || !host) return alert("Fill all fields.");
 
             const visitId = 'VISIT-' + Math.random().toString(36).substr(2, 7).toUpperCase();
-            const scheduledExit = new Date();
-            scheduledExit.setHours(scheduledExit.getHours() + duration);
-
+            
             try {
                 await addDoc(collection(db, "visits"), {
-                    visitId: visitId,
-                    visitorName: name,
-                    phone: phone,
-                    hostName: host,
-                    status: "Pending",
-                    scheduledExit: scheduledExit,
-                    createdAt: serverTimestamp(),
-                    checkInTime: null,
-                    checkOutTime: null
+                    visitId, visitorName: name, phone, hostName: host, duration,
+                    status: "Awaiting Approval", // NEW STATUS
+                    createdAt: serverTimestamp()
                 });
-
-                document.getElementById('qrcode').innerHTML = "";
-                new QRCode(document.getElementById("qrcode"), {
-                    text: visitId, width: 160, height: 160,
-                });
-                document.getElementById('qr-result').classList.replace('hidden', 'flex');
-
-                // 1. Create a live link that generates the QR image online
-                const qrLink = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${visitId}`;
-
-                // 2. Build WhatsApp Click-to-Chat Deep Link (Now including the QR link)
-                const cleanPhone = phone.replace(/[^0-9]/g, '');
-                const textMessage = `Hello ${name}! 👋\n\nYour school visitor pass has been approved.\n\n🎟️ *Pass ID:* ${visitId}\n👤 *Host:* ${host}\n⏳ *Valid For:* ${duration} Hour(s)\n\n📱 *Tap this link to view your QR Code:*\n${qrLink}\n\nPlease show your QR code at the security gate upon arrival.`;
                 
-                const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(textMessage)}`;
-
-              // Add this line to actually open WhatsApp!
-                window.open(waUrl, '_blank');
-
-            } catch (error) {
-                console.error("Firestore Error:", error);
-                alert("Error saving to database. Did you enable Firestore in Test Mode? Error: " + error.message);
-            }
+                document.getElementById('request-success').classList.replace('hidden', 'block');
+                setTimeout(() => {
+                    document.getElementById('request-success').classList.replace('block', 'hidden');
+                    document.getElementById('v-name').value = '';
+                    document.getElementById('v-phone').value = '';
+                    document.getElementById('v-host').value = '';
+                }, 3000);
+            } catch (e) { alert("Error: " + e.message); }
         };
 
-        window.startScanner = function() {
-            if (!html5QrcodeScanner) {
-                html5QrcodeScanner = new Html5Qrcode("reader");
-            }
-            const config = { fps: 10, qrbox: { width: 220, height: 220 } };
-            html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess)
-                .catch(err => document.getElementById('scan-status').innerText = "Camera Error: " + err);
-        };
-
-        window.stopScanner = function() {
-            if (html5QrcodeScanner) {
-                html5QrcodeScanner.stop().then(() => {
-                    document.getElementById('scan-status').innerText = "Camera Stopped.";
-                });
-            }
-        };
-
-        async function onScanSuccess(decodedText) {
-            html5QrcodeScanner.pause();
-            const statusDiv = document.getElementById('scan-status');
-            statusDiv.innerHTML = `<span class="text-blue-400 font-bold">Processing Pass: ${decodedText}...</span>`;
-
+        // 2. ADMIN APPROVES & SENDS
+        window.approveAndSend = async function(docId, visitId, name, phone, host, duration) {
+            const waWindow = window.open('', '_blank'); // Open tab early to beat popup blocker
+            
             try {
+                await updateDoc(doc(db, "visits", docId), { status: "Pending" }); // Ready for security
+                
+                const qrLink = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${visitId}`;
+                const textMessage = `Hello ${name}! 👋\n\nYour school visitor pass is APPROVED.\n\n🎟️ *Pass ID:* ${visitId}\n👤 *Host:* ${host}\n\n📱 *View QR Code:*\n${qrLink}`;
+                const waUrl = `https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(textMessage)}`;
+                
+                waWindow.location.href = waUrl;
+            } catch(e) {
+                waWindow.close();
+                alert("Error approving: " + e.message);
+            }
+        };
+
+        // REAL-TIME DASHBOARD FOR ADMIN
+        function listenForApprovals() {
+            const q = query(collection(db, "visits"), where("status", "==", "Awaiting Approval"));
+            onSnapshot(q, (snapshot) => {
+                const list = document.getElementById('pending-list');
+                list.innerHTML = '';
+                
+                if(snapshot.empty) list.innerHTML = '<p class="text-sm text-gray-500">No pending requests.</p>';
+
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    list.innerHTML += `
+                        <div class="bg-white p-4 rounded-lg border shadow-sm flex justify-between items-center">
+                            <div>
+                                <p class="font-bold text-sm">${data.visitorName}</p>
+                                <p class="text-xs text-gray-500">Host: ${data.hostName} | ${data.duration} Hr(s)</p>
+                            </div>
+                            <button onclick="approveAndSend('${doc.id}', '${data.visitId}', '${data.visitorName}', '${data.phone}', '${data.hostName}', ${data.duration})" 
+                                    class="bg-green-500 text-white text-xs font-bold px-3 py-2 rounded hover:bg-green-600">
+                                Approve & Send
+                            </button>
+                        </div>
+                    `;
+                });
+            });
+        }
+
+        // SECURITY SCANNER (Updated to check for "Pending" status)
+        window.startScanner = function() {
+            if (!html5QrcodeScanner) html5QrcodeScanner = new Html5Qrcode("reader");
+            html5QrcodeScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 220, height: 220 } }, async (decodedText) => {
+                html5QrcodeScanner.pause();
+                const statusDiv = document.getElementById('scan-status');
+                statusDiv.innerHTML = `<span class="text-blue-400 font-bold">Checking: ${decodedText}...</span>`;
+
                 const q = query(collection(db, "visits"), where("visitId", "==", decodedText.trim()));
-                const querySnapshot = await getDocs(q);
+                const snaps = await getDocs(q);
 
-                if (querySnapshot.empty) {
-                    statusDiv.innerHTML = `<span class="text-red-400 font-bold">❌ INVALID PASS ID!</span>`;
+                if (snaps.empty) {
+                    statusDiv.innerHTML = `<span class="text-red-400 font-bold">❌ INVALID PASS</span>`;
                 } else {
-                    querySnapshot.forEach(async (docSnap) => {
-                        const visitData = docSnap.data();
-                        const visitRef = doc(db, "visits", docSnap.id);
-
-                        if (visitData.status === "Pending") {
-                            await updateDoc(visitRef, { status: "Checked-In", checkInTime: serverTimestamp() });
-                            statusDiv.innerHTML = `<span class="text-green-400 font-bold">✅ CHECK-IN SUCCESS!</span><br>${visitData.visitorName} (Host: ${visitData.hostName})`;
-                        } else if (visitData.status === "Checked-In") {
-                            await updateDoc(visitRef, { status: "Checked-Out", checkOutTime: serverTimestamp() });
-                            statusDiv.innerHTML = `<span class="text-yellow-400 font-bold">🚪 CHECK-OUT SUCCESS!</span><br>${visitData.visitorName} has departed.`;
+                    snaps.forEach(async (d) => {
+                        const data = d.data();
+                        if (data.status === "Awaiting Approval") {
+                            statusDiv.innerHTML = `<span class="text-red-400 font-bold">❌ NOT APPROVED YET</span>`;
+                        } else if (data.status === "Pending") {
+                            await updateDoc(doc(db, "visits", d.id), { status: "Checked-In", checkInTime: serverTimestamp() });
+                            statusDiv.innerHTML = `<span class="text-green-400 font-bold">✅ CHECK-IN SUCCESS</span><br>${data.visitorName}`;
                         } else {
-                            statusDiv.innerHTML = `<span class="text-gray-400 font-bold">⚠️ Pass already used / expired.</span>`;
+                            statusDiv.innerHTML = `<span class="text-gray-400 font-bold">⚠️ Already Used</span>`;
                         }
                     });
                 }
-            } catch (err) {
-                statusDiv.innerText = "Error: " + err.message;
-            }
-            setTimeout(() => { if (html5QrcodeScanner) html5QrcodeScanner.resume(); }, 3000);
-        }
+                setTimeout(() => html5QrcodeScanner.resume(), 3000);
+            }, () => {}); // Silent error callback
+        };
 
+        window.stopScanner = () => html5QrcodeScanner?.stop();
+
+        // UI NAVIGATION
         window.login = function(role) {
             document.getElementById('login-screen').classList.add('hidden');
             if(role === 'staff') document.getElementById('staff-screen').classList.replace('hidden', 'flex');
+            if(role === 'admin') {
+                document.getElementById('admin-screen').classList.replace('hidden', 'flex');
+                listenForApprovals(); // Start fetching real-time data
+            }
             if(role === 'security') document.getElementById('security-screen').classList.replace('hidden', 'flex');
         };
 
         window.logout = function() {
             window.stopScanner();
-            document.getElementById('staff-screen').classList.replace('flex', 'hidden');
-            document.getElementById('security-screen').classList.replace('flex', 'hidden');
+            document.querySelectorAll('div[id$="-screen"]').forEach(el => {
+                el.classList.add('hidden');
+                el.classList.remove('flex');
+            });
             document.getElementById('login-screen').classList.replace('hidden', 'flex');
-            window.resetForm();
-        };
-
-        window.resetForm = function() {
-            document.getElementById('v-name').value = '';
-            document.getElementById('v-phone').value = '';
-            document.getElementById('v-host').value = '';
-            document.getElementById('qr-result').classList.replace('flex', 'hidden');
         };
     </script>
 </body>
