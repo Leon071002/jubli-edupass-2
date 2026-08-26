@@ -16,13 +16,14 @@
             <h1 class="text-2xl font-bold text-center mb-1 text-blue-600">Visitor Pass System</h1>
             <p class="text-xs text-gray-500 text-center mb-6">School Security & Admin Portal</p>
             <div class="space-y-4">
-                <input type="text" placeholder="Username" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500">
-                <input type="password" placeholder="Password" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500">
-                <div class="flex flex-col gap-2 pt-2">
-                    <button onclick="login('staff')" class="w-full bg-blue-500 text-white font-bold py-2 rounded-lg hover:bg-blue-600 shadow">Staff (Request Pass)</button>
-                    <button onclick="login('admin')" class="w-full bg-purple-600 text-white font-bold py-2 rounded-lg hover:bg-purple-700 shadow">Head Admin (Approve)</button>
-                    <button onclick="login('security')" class="w-full bg-gray-800 text-white font-bold py-2 rounded-lg hover:bg-gray-900 shadow">Security Guard (Scan)</button>
+                <input type="email" id="login-email" placeholder="Email Address" class="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
+                <input type="password" id="login-password" placeholder="Password" class="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
+                <div class="pt-2">
+                    <button onclick="handleLogin()" id="login-btn" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 shadow flex justify-center items-center">
+                        Secure Login
+                    </button>
                 </div>
+                <p id="login-error" class="text-red-500 text-xs text-center hidden"></p>
             </div>
         </div>
     </div>
@@ -91,129 +92,190 @@
         </main>
     </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, doc, updateDoc, getDocs, query, where, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+   <!-- FIREBASE AND JAVASCRIPT LOGIC -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, doc, updateDoc, getDocs, getDoc, query, where, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getAuth, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyDj_w9fbNE34dKQxSjRbKv1PEmLj69HeeQ",
-            authDomain: "jubli-edupass.firebaseapp.com",
-            projectId: "jubli-edupass",
-            storageBucket: "jubli-edupass.firebasestorage.app",
-            messagingSenderId: "202573037544",
-            appId: "1:202573037544:web:66c2e73f3fe16ff1a36e5d",
-            measurementId: "G-0FJDSGP5MF"
-        };
+    const firebaseConfig = {
+        apiKey: "AIzaSyDj_w9fbNE34dKQxSjRbKv1PEmLj69HeeQ",
+        authDomain: "jubli-edupass.firebaseapp.com",
+        projectId: "jubli-edupass",
+        storageBucket: "jubli-edupass.firebasestorage.app",
+        messagingSenderId: "202573037544",
+        appId: "1:202573037544:web:66c2e73f3fe16ff1a36e5d",
+        measurementId: "G-0FJDSGP5MF"
+    };
 
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        let html5QrcodeScanner = null;
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    let html5QrcodeScanner = null;
 
-        // 1. STAFF REQUESTS PASS
-        window.requestPass = async function() {
-            const name = document.getElementById('v-name').value.trim();
-            const phone = document.getElementById('v-phone').value.trim();
-            const host = document.getElementById('v-host').value.trim();
-            const duration = parseInt(document.getElementById('v-duration').value);
+    // --- AUTHENTICATION & ROUTING ---
+    window.handleLogin = async function() {
+        const email = document.getElementById('login-email').value;
+        const password = document.getElementById('login-password').value;
+        const btn = document.getElementById('login-btn');
+        const errorText = document.getElementById('login-error');
 
-            if(!name || !phone || !host) return alert("Fill all fields.");
+        if (!email || !password) return alert("Please enter email and password.");
 
-            const visitId = 'VISIT-' + Math.random().toString(36).substr(2, 7).toUpperCase();
+        btn.innerText = "Authenticating...";
+        errorText.classList.add('hidden');
+
+        try {
+            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            const user = userCredential.user;
+
+            const userDoc = await getDoc(doc(db, "users", user.uid));
             
-            try {
-                await addDoc(collection(db, "visits"), {
-                    visitId, visitorName: name, phone, hostName: host, duration,
-                    status: "Awaiting Approval", // NEW STATUS
-                    createdAt: serverTimestamp()
-                });
-                
-                document.getElementById('request-success').classList.replace('hidden', 'block');
-                setTimeout(() => {
-                    document.getElementById('request-success').classList.replace('block', 'hidden');
-                    document.getElementById('v-name').value = '';
-                    document.getElementById('v-phone').value = '';
-                    document.getElementById('v-host').value = '';
-                }, 3000);
-            } catch (e) { alert("Error: " + e.message); }
-        };
-
-        // 2. ADMIN APPROVES & SENDS
-        window.approveAndSend = async function(docId, visitId, name, phone, host, duration) {
-            const waWindow = window.open('', '_blank'); // Open tab early to beat popup blocker
-            
-            try {
-                await updateDoc(doc(db, "visits", docId), { status: "Pending" }); // Ready for security
-                
-                const qrLink = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${visitId}`;
-                const textMessage = `Hello ${name}! 👋\n\nYour school visitor pass is APPROVED.\n\n🎟️ *Pass ID:* ${visitId}\n👤 *Host:* ${host}\n\n📱 *View QR Code:*\n${qrLink}`;
-                const waUrl = `https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(textMessage)}`;
-                
-                waWindow.location.href = waUrl;
-            } catch(e) {
-                waWindow.close();
-                alert("Error approving: " + e.message);
+            if (userDoc.exists()) {
+                const role = userDoc.data().role;
+                routeUserToScreen(role);
+            } else {
+                throw new Error("No role assigned to this user UID in Firestore.");
             }
-        };
-
-        // REAL-TIME DASHBOARD FOR ADMIN
-        function listenForApprovals() {
-            const q = query(collection(db, "visits"), where("status", "==", "Awaiting Approval"));
-            onSnapshot(q, (snapshot) => {
-                const list = document.getElementById('pending-list');
-                list.innerHTML = '';
-                
-                if(snapshot.empty) list.innerHTML = '<p class="text-sm text-gray-500">No pending requests.</p>';
-
-                snapshot.forEach(doc => {
-                    const data = doc.data();
-                    list.innerHTML += `
-                        <div class="bg-white p-4 rounded-lg border shadow-sm flex justify-between items-center">
-                            <div>
-                                <p class="font-bold text-sm">${data.visitorName}</p>
-                                <p class="text-xs text-gray-500">Host: ${data.hostName} | ${data.duration} Hr(s)</p>
-                            </div>
-                            <button onclick="approveAndSend('${doc.id}', '${data.visitId}', '${data.visitorName}', '${data.phone}', '${data.hostName}', ${data.duration})" 
-                                    class="bg-green-500 text-white text-xs font-bold px-3 py-2 rounded hover:bg-green-600">
-                                Approve & Send
-                            </button>
-                        </div>
-                    `;
-                });
-            });
+        } catch (error) {
+            errorText.innerText = "Login failed: " + error.message;
+            errorText.classList.remove('hidden');
+        } finally {
+            btn.innerText = "Secure Login";
         }
+    };
 
-        // SECURITY SCANNER (Updated to check for "Pending" status)
-        window.startScanner = function() {
-            if (!html5QrcodeScanner) html5QrcodeScanner = new Html5Qrcode("reader");
-            html5QrcodeScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 220, height: 220 } }, async (decodedText) => {
-                html5QrcodeScanner.pause();
-                const statusDiv = document.getElementById('scan-status');
-                statusDiv.innerHTML = `<span class="text-blue-400 font-bold">Checking: ${decodedText}...</span>`;
+    function routeUserToScreen(role) {
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('login-email').value = '';
+        document.getElementById('login-password').value = '';
 
-                const q = query(collection(db, "visits"), where("visitId", "==", decodedText.trim()));
-                const snaps = await getDocs(q);
+        if(role === 'staff') document.getElementById('staff-screen').classList.replace('hidden', 'flex');
+        
+        if(role === 'admin') {
+            document.getElementById('admin-screen').classList.replace('hidden', 'flex');
+            listenForApprovals(); 
+        }
+        
+        if(role === 'security') document.getElementById('security-screen').classList.replace('hidden', 'flex');
+    }
 
-                if (snaps.empty) {
-                    statusDiv.innerHTML = `<span class="text-red-400 font-bold">❌ INVALID PASS</span>`;
-                } else {
-                    snaps.forEach(async (d) => {
-                        const data = d.data();
-                        if (data.status === "Awaiting Approval") {
-                            statusDiv.innerHTML = `<span class="text-red-400 font-bold">❌ NOT APPROVED YET</span>`;
-                        } else if (data.status === "Pending") {
-                            await updateDoc(doc(db, "visits", d.id), { status: "Checked-In", checkInTime: serverTimestamp() });
-                            statusDiv.innerHTML = `<span class="text-green-400 font-bold">✅ CHECK-IN SUCCESS</span><br>${data.visitorName}`;
-                        } else {
-                            statusDiv.innerHTML = `<span class="text-gray-400 font-bold">⚠️ Already Used</span>`;
-                        }
-                    });
-                }
-                setTimeout(() => html5QrcodeScanner.resume(), 3000);
-            }, () => {}); // Silent error callback
-        };
+    window.logout = function() {
+        signOut(auth).then(() => {
+            window.stopScanner();
+            document.querySelectorAll('div[id$="-screen"]').forEach(el => {
+                el.classList.add('hidden');
+                el.classList.remove('flex');
+            });
+            document.getElementById('login-screen').classList.replace('hidden', 'flex');
+        });
+    };
 
-        window.stopScanner = () => html5QrcodeScanner?.stop();
+    // --- STAFF: REQUEST PASS ---
+    window.requestPass = async function() {
+        const name = document.getElementById('v-name').value.trim();
+        const phone = document.getElementById('v-phone').value.trim();
+        const host = document.getElementById('v-host').value.trim();
+        const duration = parseInt(document.getElementById('v-duration').value);
 
+        if(!name || !phone || !host) return alert("Fill all fields.");
+
+        const visitId = 'VISIT-' + Math.random().toString(36).substr(2, 7).toUpperCase();
+        
+        try {
+            await addDoc(collection(db, "visits"), {
+                visitId, visitorName: name, phone, hostName: host, duration,
+                status: "Awaiting Approval",
+                createdAt: serverTimestamp()
+            });
+            
+            document.getElementById('request-success').classList.replace('hidden', 'block');
+            setTimeout(() => {
+                document.getElementById('request-success').classList.replace('block', 'hidden');
+                document.getElementById('v-name').value = '';
+                document.getElementById('v-phone').value = '';
+                document.getElementById('v-host').value = '';
+            }, 3000);
+        } catch (e) { alert("Error: " + e.message); }
+    };
+
+    // --- ADMIN: APPROVE & SEND WHATSAPP ---
+    window.approveAndSend = async function(docId, visitId, name, phone, host, duration) {
+        const waWindow = window.open('', '_blank');
+        
+        try {
+            await updateDoc(doc(db, "visits", docId), { status: "Pending" });
+            
+            const qrLink = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${visitId}`;
+            const textMessage = `Hello ${name}! 👋\n\nYour school visitor pass is APPROVED.\n\n🎟️ *Pass ID:* ${visitId}\n👤 *Host:* ${host}\n\n📱 *View QR Code:*\n${qrLink}`;
+            const waUrl = `https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(textMessage)}`;
+            
+            waWindow.location.href = waUrl;
+        } catch(e) {
+            waWindow.close();
+            alert("Error approving: " + e.message);
+        }
+    };
+
+    function listenForApprovals() {
+        const q = query(collection(db, "visits"), where("status", "==", "Awaiting Approval"));
+        onSnapshot(q, (snapshot) => {
+            const list = document.getElementById('pending-list');
+            list.innerHTML = '';
+            
+            if(snapshot.empty) list.innerHTML = '<p class="text-sm text-gray-500">No pending requests.</p>';
+
+            snapshot.forEach(docSnap => {
+                const data = docSnap.data();
+                list.innerHTML += `
+                    <div class="bg-white p-4 rounded-lg border shadow-sm flex justify-between items-center">
+                        <div>
+                            <p class="font-bold text-sm">${data.visitorName}</p>
+                            <p class="text-xs text-gray-500">Host: ${data.hostName} | ${data.duration} Hr(s)</p>
+                        </div>
+                        <button onclick="approveAndSend('${docSnap.id}', '${data.visitId}', '${data.visitorName}', '${data.phone}', '${data.hostName}', ${data.duration})" 
+                                class="bg-green-500 text-white text-xs font-bold px-3 py-2 rounded hover:bg-green-600">
+                            Approve & Send
+                        </button>
+                    </div>
+                `;
+            });
+        });
+    }
+
+    // --- SECURITY: CAMERA SCANNER ---
+    window.startScanner = function() {
+        if (!html5QrcodeScanner) html5QrcodeScanner = new Html5Qrcode("reader");
+        html5QrcodeScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 220, height: 220 } }, async (decodedText) => {
+            html5QrcodeScanner.pause();
+            const statusDiv = document.getElementById('scan-status');
+            statusDiv.innerHTML = `<span class="text-blue-400 font-bold">Checking: ${decodedText}...</span>`;
+
+            const q = query(collection(db, "visits"), where("visitId", "==", decodedText.trim()));
+            const snaps = await getDocs(q);
+
+            if (snaps.empty) {
+                statusDiv.innerHTML = `<span class="text-red-400 font-bold">❌ INVALID PASS</span>`;
+            } else {
+                snaps.forEach(async (d) => {
+                    const data = d.data();
+                    if (data.status === "Awaiting Approval") {
+                        statusDiv.innerHTML = `<span class="text-red-400 font-bold">❌ NOT APPROVED YET</span>`;
+                    } else if (data.status === "Pending") {
+                        await updateDoc(doc(db, "visits", d.id), { status: "Checked-In", checkInTime: serverTimestamp() });
+                        statusDiv.innerHTML = `<span class="text-green-400 font-bold">✅ CHECK-IN SUCCESS</span><br>${data.visitorName}`;
+                    } else {
+                        statusDiv.innerHTML = `<span class="text-gray-400 font-bold">⚠️ Already Used / Checked-In</span>`;
+                    }
+                });
+            }
+            setTimeout(() => html5QrcodeScanner.resume(), 3000);
+        }, () => {});
+    };
+
+    window.stopScanner = () => html5QrcodeScanner?.stop();
+</script>
+    
         // UI NAVIGATION
         window.login = function(role) {
             document.getElementById('login-screen').classList.add('hidden');
