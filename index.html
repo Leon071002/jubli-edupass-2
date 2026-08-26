@@ -16,14 +16,16 @@
             <h1 class="text-2xl font-bold text-center mb-1 text-blue-600">Visitor Pass System</h1>
             <p class="text-xs text-gray-500 text-center mb-6">School Security & Admin Portal</p>
             <div class="space-y-4">
-                <input type="email" id="login-email" placeholder="Email Address (Staff / Admin)" class="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
-                <input type="password" id="login-password" placeholder="Password" class="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
+                <input type="email" id="login-email" placeholder="Email Address" class="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
+                <input type="password" id="login-password" placeholder="Password (Min. 6 chars)" class="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
                 
                 <div class="pt-2 space-y-2">
                     <button onclick="handleLogin()" id="login-btn" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 shadow">
-                        Secure Staff / Admin Login
+                        Secure Login
                     </button>
-                    <!-- FEATURE 1: NO LOGIN REQUIRED FOR SECURITY -->
+                    <button onclick="handleRegisterStaff()" id="reg-btn" class="w-full bg-green-600 text-white font-bold py-2.5 rounded-lg hover:bg-green-700 shadow border border-green-700 text-sm">
+                        ➕ Register as New Staff
+                    </button>
                     <button onclick="openSecurityDirectly()" class="w-full bg-gray-800 text-white font-bold py-3 rounded-lg hover:bg-gray-900 shadow border border-gray-700 flex items-center justify-center gap-2">
                         <span>📷</span> Open Security Scanner (No Login)
                     </button>
@@ -60,7 +62,12 @@
                         <input type="tel" id="v-host-phone" placeholder="60198765432" class="w-full p-2.5 border rounded-lg outline-none">
                     </div>
 
-                    <!-- FEATURE 3: START TIME AND END TIME SELECTION (8 AM - 6 PM) -->
+                    <!-- NEW: DATE OF VISIT FIELD -->
+                    <div>
+                        <label class="text-xs font-bold text-gray-500">DATE OF VISIT</label>
+                        <input type="date" id="v-date" class="w-full p-2.5 border rounded-lg outline-none bg-white">
+                    </div>
+
                     <div class="grid grid-cols-2 gap-2 pt-1">
                         <div>
                             <label class="text-xs font-bold text-gray-500">START TIME</label>
@@ -106,14 +113,18 @@
         </main>
     </div>
 
-    <!-- HEAD ADMIN SCREEN (APPROVAL DASHBOARD) -->
+    <!-- HEAD ADMIN SCREEN -->
     <div id="admin-screen" class="hidden flex-col min-h-screen">
         <header class="bg-purple-600 text-white p-4 flex justify-between items-center shadow-md">
             <h1 class="font-bold text-lg">Admin Approval Board</h1>
             <button onclick="logout()" class="text-sm underline bg-purple-700 px-3 py-1 rounded">Logout</button>
         </header>
         <main class="flex-1 p-4 w-full max-w-md mx-auto space-y-4">
-            <h2 class="font-bold text-gray-700">Pending Requests</h2>
+            <!-- NEW: GOOGLE SHEETS COMPILATION / EXPORT BUTTON -->
+            <button onclick="exportVisitsToCSV()" class="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 shadow flex items-center justify-center gap-2">
+                📊 Download Visits Data for Google Sheets
+            </button>
+            <h2 class="font-bold text-gray-700 pt-2">Pending Requests</h2>
             <div id="pending-list" class="space-y-3"></div>
         </main>
     </div>
@@ -124,29 +135,25 @@
             <h1 class="font-bold text-lg">Gate Security Scanner</h1>
             <button onclick="logout()" class="text-sm underline bg-gray-700 px-3 py-1 rounded">Exit Scanner</button>
         </header>
-        
         <main class="flex-1 p-4 flex flex-col items-center justify-center w-full max-w-md mx-auto space-y-4">
             <div class="w-full bg-black rounded-xl overflow-hidden border-2 border-gray-700 min-h-[260px] relative">
                 <div id="reader" class="w-full"></div>
             </div>
-            
             <div class="w-full flex gap-2">
                 <button onclick="startScanner()" class="w-full bg-blue-600 font-bold py-3 rounded-xl hover:bg-blue-700 shadow">Start Camera</button>
                 <button onclick="stopScanner()" class="w-full bg-gray-700 font-bold py-3 rounded-xl hover:bg-gray-600 shadow">Stop Camera</button>
             </div>
-            
-            <!-- FEATURE 2: SCAN STATUS & DETAILED VISITOR CARD DISPLAY -->
             <div id="scan-status" class="w-full p-4 rounded-xl text-center text-sm bg-gray-800 text-gray-300 min-h-[80px] flex items-center justify-center border border-gray-700">
                 Ready to scan QR Code...
             </div>
         </main>
     </div>
 
-    <!-- FIREBASE AND APPLICATION LOGIC -->
+    <!-- FIREBASE AND JAVASCRIPT LOGIC -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, doc, updateDoc, getDocs, getDoc, query, where, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-        import { getAuth, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, collection, addDoc, doc, setDoc, updateDoc, getDocs, getDoc, query, where, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDj_w9fbNE34dKQxSjRbKv1PEmLj69HeeQ",
@@ -163,16 +170,44 @@
         const auth = getAuth(app);
         let html5QrcodeScanner = null;
 
-        // FEATURE 1: NO LOGIN SECURITY ROUTE
+        // Set default date input to today
+        document.getElementById('v-date').valueAsDate = new Date();
+
         window.openSecurityDirectly = function() {
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('security-screen').classList.replace('hidden', 'flex');
         };
 
-        // STAFF / ADMIN LOGIN
+        window.handleRegisterStaff = async function() {
+            const email = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-password').value.trim();
+            const errorText = document.getElementById('login-error');
+
+            if (!email || !password) return alert("Enter email and password to register.");
+            if (password.length < 6) return alert("Password must be at least 6 characters.");
+
+            errorText.classList.add('hidden');
+
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                const user = userCredential.user;
+
+                await setDoc(doc(db, "Users", user.uid), {
+                    email: email,
+                    role: "staff",
+                    createdAt: serverTimestamp()
+                });
+
+                routeUserToScreen('staff');
+            } catch (error) {
+                errorText.innerText = "Registration failed: " + error.message;
+                errorText.classList.remove('hidden');
+            }
+        };
+
         window.handleLogin = async function() {
-            const email = document.getElementById('login-email').value;
-            const password = document.getElementById('login-password').value;
+            const email = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-password').value.trim();
             const btn = document.getElementById('login-btn');
             const errorText = document.getElementById('login-error');
 
@@ -189,13 +224,13 @@
                 if (userDoc.exists()) {
                     routeUserToScreen(userDoc.data().role);
                 } else {
-                    throw new Error("No role assigned to this user in Firestore.");
+                    throw new Error("No role assigned to this UID in Users collection.");
                 }
             } catch (error) {
                 errorText.innerText = "Login failed: " + error.message;
                 errorText.classList.remove('hidden');
             } finally {
-                btn.innerText = "Secure Staff / Admin Login";
+                btn.innerText = "Secure Login";
             }
         };
 
@@ -229,17 +264,18 @@
             const phone = document.getElementById('v-phone').value.trim();
             const host = document.getElementById('v-host').value.trim();
             const hostPhone = document.getElementById('v-host-phone').value.trim();
+            const visitDate = document.getElementById('v-date').value;
             const startTime = document.getElementById('v-start-time').value;
             const endTime = document.getElementById('v-end-time').value;
 
-            if(!name || !phone || !host || !hostPhone) return alert("Please fill in all fields including Host Phone.");
+            if(!name || !phone || !host || !hostPhone || !visitDate) return alert("Please fill in all fields including Visit Date.");
 
             const visitId = 'VISIT-' + Math.random().toString(36).substr(2, 7).toUpperCase();
             
             try {
                 await addDoc(collection(db, "visits"), {
                     visitId, visitorName: name, phone, hostName: host, hostPhone: hostPhone,
-                    startTime, endTime,
+                    visitDate, startTime, endTime,
                     status: "Awaiting Approval",
                     createdAt: serverTimestamp()
                 });
@@ -256,14 +292,14 @@
         };
 
         // ADMIN APPROVE & SEND WHATSAPP
-        window.approveAndSend = async function(docId, visitId, name, phone, host, startTime, endTime) {
+        window.approveAndSend = async function(docId, visitId, name, phone, host, visitDate, startTime, endTime) {
             const waWindow = window.open('', '_blank');
             
             try {
                 await updateDoc(doc(db, "visits", docId), { status: "Pending" });
                 
                 const qrLink = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${visitId}`;
-                const textMessage = `Hello ${name}! 👋\n\nYour school visitor pass has been APPROVED.\n\n🎟️ *Pass ID:* ${visitId}\n👤 *Host:* ${host}\n⏰ *Visiting Hours:* ${startTime} - ${endTime}\n\n📱 *View QR Code:*\n${qrLink}`;
+                const textMessage = `Hello ${name}! 👋\n\nYour school visitor pass has been APPROVED.\n\n🎟️ *Pass ID:* ${visitId}\n👤 *Host:* ${host}\n📅 *Date:* ${visitDate}\n⏰ *Visiting Hours:* ${startTime} - ${endTime}\n\n📱 *View QR Code:*\n${qrLink}`;
                 const waUrl = `https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(textMessage)}`;
                 
                 waWindow.location.href = waUrl;
@@ -288,9 +324,9 @@
                             <div>
                                 <p class="font-bold text-sm">${data.visitorName}</p>
                                 <p class="text-xs text-gray-500">Host: ${data.hostName} (${data.hostPhone || 'No Phone'})</p>
-                                <p class="text-xs text-blue-600 font-semibold">⏰ ${data.startTime} - ${data.endTime}</p>
+                                <p class="text-xs text-blue-600 font-semibold">📅 ${data.visitDate || 'N/A'} | ⏰ ${data.startTime} - ${data.endTime}</p>
                             </div>
-                            <button onclick="approveAndSend('${docSnap.id}', '${data.visitId}', '${data.visitorName}', '${data.phone}', '${data.hostName}', '${data.startTime}', '${data.endTime}')" 
+                            <button onclick="approveAndSend('${docSnap.id}', '${data.visitId}', '${data.visitorName}', '${data.phone}', '${data.hostName}', '${data.visitDate}', '${data.startTime}', '${data.endTime}')" 
                                     class="bg-green-500 text-white text-xs font-bold px-3 py-2 rounded hover:bg-green-600">
                                 Approve & Send
                             </button>
@@ -300,7 +336,41 @@
             });
         }
 
-        // FEATURE 2: CAMERA SCANNER & DISPLAY VISITOR + HOST DETAILS
+        // GOOGLE SHEETS / CSV EXPORT FUNCTION
+        window.exportVisitsToCSV = async function() {
+            try {
+                const querySnapshot = await getDocs(collection(db, "visits"));
+                let csvContent = "data:text/csv;charset=utf-8,";
+                csvContent += "Visitor Name,Visitor Phone,Host Name,Host Phone,Date of Visit,Start Time,End Time,Status\n";
+
+                querySnapshot.forEach((docSnap) => {
+                    const d = docSnap.data();
+                    const row = [
+                        `"${d.visitorName || ''}"`,
+                        `"${d.phone || ''}"`,
+                        `"${d.hostName || ''}"`,
+                        `"${d.hostPhone || ''}"`,
+                        `"${d.visitDate || ''}"`,
+                        `"${d.startTime || ''}"`,
+                        `"${d.endTime || ''}"`,
+                        `"${d.status || ''}"`
+                    ].join(",");
+                    csvContent += row + "\n";
+                });
+
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", `visitor_log_${new Date().toISOString().split('T')[0]}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } catch(e) {
+                alert("Export failed: " + e.message);
+            }
+        };
+
+        // CAMERA SCANNER
         window.startScanner = function() {
             if (!html5QrcodeScanner) html5QrcodeScanner = new Html5Qrcode("reader");
             html5QrcodeScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 220, height: 220 } }, async (decodedText) => {
@@ -322,7 +392,6 @@
                         } else if (data.status === "Pending") {
                             await updateDoc(doc(db, "visits", d.id), { status: "Checked-In", checkInTime: serverTimestamp() });
                             
-                            // DETAILED CARD DISPLAY ON CHECK-IN
                             statusDiv.innerHTML = `
                                 <div class="bg-gray-800 p-4 rounded-xl text-left border border-green-500 w-full space-y-1.5">
                                     <div class="text-green-400 font-bold text-base border-b border-gray-700 pb-1 mb-2">✅ CHECK-IN SUCCESSFUL</div>
@@ -330,6 +399,7 @@
                                     <p><span class="text-gray-400 font-semibold">📱 Visitor Phone:</span> <span class="text-white">${data.phone}</span></p>
                                     <p><span class="text-gray-400 font-semibold">🏫 Host Name:</span> <span class="text-white font-bold">${data.hostName}</span></p>
                                     <p><span class="text-gray-400 font-semibold">📞 Host Phone:</span> <span class="text-blue-300 font-bold">${data.hostPhone || 'N/A'}</span></p>
+                                    <p><span class="text-gray-400 font-semibold">📅 Date of Visit:</span> <span class="text-purple-300 font-bold">${data.visitDate || 'N/A'}</span></p>
                                     <p><span class="text-gray-400 font-semibold">⏰ Visiting Hours:</span> <span class="text-yellow-300 font-bold">${data.startTime} - ${data.endTime}</span></p>
                                 </div>
                             `;
@@ -339,6 +409,7 @@
                                     <div class="text-yellow-400 font-bold text-sm mb-1">⚠️ PASS ALREADY CHECKED-IN</div>
                                     <p><span class="text-gray-400">Visitor:</span> ${data.visitorName}</p>
                                     <p><span class="text-gray-400">Host:</span> ${data.hostName} (${data.hostPhone || 'N/A'})</p>
+                                    <p><span class="text-gray-400">Date:</span> ${data.visitDate || 'N/A'}</p>
                                 </div>
                             `;
                         }
