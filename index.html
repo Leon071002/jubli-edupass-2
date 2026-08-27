@@ -10,7 +10,7 @@
 </head>
 <body class="bg-gray-100 min-h-screen text-gray-800 font-sans">
 
-    <!-- HOST ACTION NOTIFICATION MODAL / SCREEN (HANDLES WHATSAPP CLICK ACTIONS) -->
+    <!-- HOST ACTION NOTIFICATION MODAL / SCREEN -->
     <div id="action-screen" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl p-6 max-w-sm w-full text-center space-y-4 shadow-2xl">
             <div id="action-icon" class="text-5xl">⚡</div>
@@ -105,14 +105,14 @@
                             <input type="text" id="v-host" placeholder="e.g. Mr. Smith" class="w-full p-2.5 border rounded-lg outline-none">
                         </div>
                         <div>
-                            <label class="text-xs font-bold text-gray-500">HOST PHONE NUMBER</label>
-                            <input type="tel" id="v-host-phone" placeholder="60198765432" class="w-full p-2.5 border rounded-lg outline-none">
+                            <label class="text-xs font-bold text-gray-500">HOST EMAIL (FOR NOTIFICATIONS)</label>
+                            <input type="email" id="v-host-email" placeholder="host@school.edu" class="w-full p-2.5 border rounded-lg outline-none">
                         </div>
                     </div>
 
                     <!-- COMMON PHONE & DATE FIELDS -->
                     <div>
-                        <label class="text-xs font-bold text-gray-500">WHATSAPP NUMBER (FOR PASS DELIVERY)</label>
+                        <label class="text-xs font-bold text-gray-500">WHATSAPP NUMBER (FOR VISITOR PASS DELIVERY)</label>
                         <input type="tel" id="v-phone" placeholder="60123456789" class="w-full p-2.5 border rounded-lg outline-none">
                     </div>
 
@@ -170,6 +170,13 @@
             <button onclick="logout()" class="text-sm underline bg-purple-700 px-3 py-1 rounded">Logout</button>
         </header>
         <main class="flex-1 p-4 w-full max-w-md mx-auto space-y-4">
+
+            <!-- HOST EMAIL NOTIFICATION FALLBACK BANNER -->
+            <div id="host-notify-banner" class="hidden bg-blue-50 border-2 border-blue-300 rounded-xl p-3 text-xs text-blue-800 flex items-center justify-between gap-3">
+                <span id="host-notify-text" class="flex-1 font-semibold">Host email notification ready.</span>
+                <a id="host-notify-link" href="#" onclick="dismissHostNotifyBanner()" class="bg-blue-600 text-white font-bold px-3 py-1.5 rounded whitespace-nowrap">✉️ Send Host Email</a>
+                <button onclick="dismissHostNotifyBanner()" class="text-blue-400 hover:text-blue-700 font-bold px-1" title="Dismiss">✕</button>
+            </div>
             
             <!-- ADMIN DIRECT VISITOR CREATION FORM -->
             <div class="bg-white p-4 rounded-xl border border-purple-200 shadow-sm">
@@ -198,9 +205,9 @@
                     </div>
                     <div class="grid grid-cols-2 gap-2">
                         <input type="text" id="adm-v-host" placeholder="Host Name (Optional)" class="w-full p-2 border rounded">
-                        <input type="tel" id="adm-v-host-phone" placeholder="Host Phone (Optional)" class="w-full p-2 border rounded">
+                        <input type="email" id="adm-v-host-email" placeholder="Host Email (Optional)" class="w-full p-2 border rounded">
                     </div>
-                    <input type="tel" id="adm-v-phone" placeholder="WhatsApp Number" class="w-full p-2 border rounded">
+                    <input type="tel" id="adm-v-phone" placeholder="Visitor WhatsApp Number" class="w-full p-2 border rounded">
                     <div class="grid grid-cols-3 gap-1">
                         <input type="date" id="adm-v-date" class="p-2 border rounded text-[10px]">
                         <input type="time" id="adm-v-start" value="08:00" class="p-2 border rounded text-[10px]">
@@ -293,7 +300,7 @@
         document.getElementById('v-date').valueAsDate = new Date();
         document.getElementById('adm-v-date').valueAsDate = new Date();
 
-        // CHECK URL FOR WHATSAPP ACTION LINKS (HOST ACKNOWLEDGE & EXTENSION)
+        // CHECK URL FOR ACTION LINKS (HOST ACKNOWLEDGE & EXTENSION)
         window.addEventListener('DOMContentLoaded', async () => {
             const urlParams = new URLSearchParams(window.location.search);
             const action = urlParams.get('action');
@@ -408,7 +415,7 @@
             const startTime = document.getElementById('v-start-time').value;
             const endTime = document.getElementById('v-end-time').value;
 
-            let name = '', studentName = '', studentClass = '', host = '', hostPhone = '';
+            let name = '', studentName = '', studentClass = '', host = '', hostEmail = '';
 
             if (passType.includes('Parent')) {
                 name = document.getElementById('p-name').value.trim();
@@ -418,19 +425,19 @@
             } else {
                 name = document.getElementById('v-name').value.trim();
                 host = document.getElementById('v-host').value.trim();
-                hostPhone = document.getElementById('v-host-phone').value.trim();
+                hostEmail = document.getElementById('v-host-email').value.trim();
                 if (!name || !host || !phone || !visitDate) return alert("Fill in Visitor Name, Host, Phone, and Date.");
             }
 
             const visitId = 'VISIT-' + Math.random().toString(36).substr(2, 7).toUpperCase();
             const isExpress = passType.includes('Express');
-            const initialStatus = isExpress ? "Pending" : "Awaiting Approval"; // Express auto-approved
+            const initialStatus = isExpress ? "Pending" : "Awaiting Approval";
 
             try {
                 const docRef = await addDoc(collection(db, "visits"), {
                     visitId, qrActive: true, passType, visitorName: name, phone,
                     studentName: studentName || 'N/A', studentClass: studentClass || 'N/A',
-                    hostName: host || 'N/A', hostPhone: hostPhone || 'N/A',
+                    hostName: host || 'N/A', hostEmail: hostEmail || 'N/A',
                     visitDate, startTime, endTime, status: initialStatus,
                     hostAcknowledged: false, checkInTime: null, checkOutTime: null, createdAt: serverTimestamp()
                 });
@@ -452,7 +459,7 @@
             const studentName = document.getElementById('adm-p-student').value.trim() || 'N/A';
             const studentClass = document.getElementById('adm-p-class').value;
             const host = document.getElementById('adm-v-host').value.trim() || 'N/A';
-            const hostPhone = document.getElementById('adm-v-host-phone').value.trim() || 'N/A';
+            const hostEmail = document.getElementById('adm-v-host-email').value.trim() || 'N/A';
             const phone = document.getElementById('adm-v-phone').value.trim();
             const visitDate = document.getElementById('adm-v-date').value;
             const startTime = document.getElementById('adm-v-start').value;
@@ -465,28 +472,25 @@
             try {
                 const docRef = await addDoc(collection(db, "visits"), {
                     visitId, qrActive: true, passType: "Admin Direct Pass", visitorName: name, phone,
-                    studentName, studentClass, hostName: host, hostPhone, visitDate, startTime, endTime,
+                    studentName, studentClass, hostName: host, hostEmail, visitDate, startTime, endTime,
                     status: "Pending", hostAcknowledged: false, checkInTime: null, checkOutTime: null, createdAt: serverTimestamp()
                 });
 
-                // Host 15-Min Pre-Visit Notification & Ack Link Setup
                 const ackUrl = `${window.location.origin}${window.location.pathname}?action=ack&id=${docRef.id}`;
                 const qrLink = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${visitId}`;
 
                 let waMsg = `Hello ${name}! 👋 Your school pass has been CREATED by Admin.\n\n🎟️ Pass ID: ${visitId}\n📅 Date: ${visitDate}\n⏰ Hours: ${startTime} - ${endTime}\n\n📱 View QR Code:\n${qrLink}`;
                 window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(waMsg)}`, '_blank');
 
-                if (hostPhone !== 'N/A') {
-                    let hostMsg = `Hello ${host}! 👋 Visitor *${name}* is scheduled to visit you on ${visitDate} at ${startTime}.\n\n👉 Please click to confirm readiness: ${ackUrl}`;
-                    setTimeout(() => window.open(`https://wa.me/${hostPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(hostMsg)}`, '_blank'), 1000);
-                }
+                // Notify host via email
+                notifyHostEmail(host, hostEmail, name, visitDate, startTime, endTime, ackUrl);
 
                 alert("Pass Created & Sent!");
             } catch(e) { alert("Admin pass creation failed: " + e.message); }
         };
 
         // ADMIN APPROVE & SEND PASS
-        window.approveAndSend = async function(docId, visitId, passType, name, phone, studentName, studentClass, host, hostPhone, visitDate, startTime, endTime) {
+        window.approveAndSend = async function(docId, visitId, passType, name, phone, studentName, studentClass, host, hostEmail, visitDate, startTime, endTime) {
             try {
                 await updateDoc(doc(db, "visits", docId), { status: "Pending" });
                 const ackUrl = `${window.location.origin}${window.location.pathname}?action=ack&id=${docId}`;
@@ -495,12 +499,8 @@
                 let textMessage = `Hello ${name}! 👋\n\nYour school pass [${passType}] has been APPROVED.\n\n🎟️ *Pass ID:* ${visitId}\n📅 *Date:* ${visitDate}\n⏰ *Hours:* ${startTime} - ${endTime}\n\n📱 *View QR Code:*\n${qrLink}`;
                 window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(textMessage)}`, '_blank');
 
-                // Send 15-Min Notification & Readiness Ack Button to Host if General Visitor
-                const hostPhoneClean = (hostPhone || '').replace(/[^0-9]/g, '');
-                if (hostPhoneClean && hostPhoneClean !== 'N/A') {
-                    let hostNotice = `Hello ${host}! 👋 Visitor *${name}* is scheduled for today (${startTime} - ${endTime}).\n\n👉 Click link to confirm you are prepared: ${ackUrl}`;
-                    setTimeout(() => window.open(`https://wa.me/${hostPhoneClean}?text=${encodeURIComponent(hostNotice)}`, '_blank'), 1000);
-                }
+                // Notify host via email
+                notifyHostEmail(host, hostEmail, name, visitDate, startTime, endTime, ackUrl);
             } catch(e) { alert("Error approving pass: " + e.message); }
         };
 
@@ -508,9 +508,33 @@
             if(confirm("Decline pass request?")) await updateDoc(doc(db, "visits", docId), { status: "Declined" });
         };
 
-        // DELETE EXPIRED QR CODES (PRESERVING GOOGLE SHEETS ENTRY PROOF)
+        // HOST EMAIL NOTIFICATION 
+        function notifyHostEmail(host, hostEmail, visitorName, visitDate, startTime, endTime, ackUrl) {
+            if (!hostEmail || hostEmail === 'N/A') return;
+
+            const subject = encodeURIComponent(`Visitor Notification: ${visitorName} scheduled for ${visitDate}`);
+            const body = encodeURIComponent(`Hello ${host},\n\nVisitor ${visitorName} is scheduled to visit you on ${visitDate} (${startTime} - ${endTime}).\n\nPlease click the link below to confirm your readiness:\n${ackUrl}`);
+            const mailtoUrl = `mailto:${hostEmail}?subject=${subject}&body=${body}`;
+
+            showHostNotifyBanner(host, visitorName, mailtoUrl);
+        }
+
+        window.dismissHostNotifyBanner = function() {
+            document.getElementById('host-notify-banner').classList.add('hidden');
+        };
+
+        function showHostNotifyBanner(host, visitorName, mailtoUrl) {
+            const banner = document.getElementById('host-notify-banner');
+            if (!banner) return;
+            document.getElementById('host-notify-text').innerText = `Host email ready ✅ — tap to email ${host} about ${visitorName}:`;
+            document.getElementById('host-notify-link').href = mailtoUrl;
+            banner.classList.remove('hidden');
+            banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // DELETE EXPIRED QR CODES
         window.deleteExpiredQRsOnly = async function() {
-            if(!confirm("Invalidate/delete QR codes for expired passes? (Entry proofs & check-in records will remain intact for Google Sheets export)")) return;
+            if(!confirm("Invalidate/delete QR codes for expired passes?")) return;
             const today = new Date().toISOString().split('T')[0];
             let count = 0;
             try {
@@ -522,7 +546,7 @@
                         count++;
                     }
                 }
-                alert(`Cleanup Complete: ${count} expired QR code(s) invalidated. Logs kept for CSV report.`);
+                alert(`Cleanup Complete: ${count} expired QR code(s) invalidated.`);
             } catch(e) { alert("Error clearing QRs: " + e.message); }
         };
 
@@ -544,14 +568,14 @@
                             </div>
                             <div class="flex gap-2 justify-end">
                                 <button onclick="declinePass('${docSnap.id}')" class="bg-red-500 text-white font-bold px-2.5 py-1 rounded">Decline</button>
-                                <button onclick="approveAndSend('${docSnap.id}', '${data.visitId}', '${data.passType}', '${data.visitorName}', '${data.phone}', '${data.studentName}', '${data.studentClass}', '${data.hostName}', '${data.hostPhone}', '${data.visitDate}', '${data.startTime}', '${data.endTime}')" class="bg-green-600 text-white font-bold px-2.5 py-1 rounded">Approve & Send</button>
+                                <button onclick="approveAndSend('${docSnap.id}', '${data.visitId}', '${data.passType}', '${data.visitorName}', '${data.phone}', '${data.studentName}', '${data.studentClass}', '${data.hostName}', '${data.hostEmail}', '${data.visitDate}', '${data.startTime}', '${data.endTime}')" class="bg-green-600 text-white font-bold px-2.5 py-1 rounded">Approve & Send</button>
                             </div>
                         </div>`;
                 });
             });
         }
 
-        // OVERDUE & HOST 1-HOUR EXTENSION MONITORING
+        // OVERDUE & HOST 1-HOUR EXTENSION MONITORING VIA EMAIL
         window.checkOverdueVisitors = async function() {
             const overdueList = document.getElementById('overdue-list');
             overdueList.innerHTML = '<p class="text-xs text-gray-500">Checking for unexited visitors...</p>';
@@ -571,8 +595,9 @@
                     const docId = docSnap.id;
                     const extendUrl = `${window.location.origin}${window.location.pathname}?action=extend1h&id=${docId}`;
 
-                    const hostPhoneClean = (d.hostPhone || '').replace(/[^0-9]/g, '');
-                    const overdueHostMsg = `Hello ${d.hostName}! ⚠️ Your visitor *${d.visitorName}* has passed their scheduled end time (${d.endTime}) and is STILL in campus.\n\n👉 Need more time? Click to extend pass by 1 Hour: ${extendUrl}`;
+                    const subject = encodeURIComponent(`Overdue Visitor Alert: ${d.visitorName}`);
+                    const body = encodeURIComponent(`Hello ${d.hostName},\n\nYour visitor ${d.visitorName} has passed their scheduled end time (${d.endTime}) and is still on campus.\n\nNeed to extend their pass by 1 hour? Click here: ${extendUrl}`);
+                    const mailtoUrl = `mailto:${d.hostEmail}?subject=${subject}&body=${body}`;
 
                     overdueList.innerHTML += `
                         <div class="bg-white p-3 rounded-lg border border-amber-300 shadow-sm text-xs space-y-2">
@@ -582,25 +607,25 @@
                                 <p class="text-gray-500">Scheduled End: ${d.endTime} ${d.extendedCount ? `(Extended ${d.extendedCount}x)` : ''}</p>
                                 <p class="text-xs ${d.hostAcknowledged ? 'text-green-600' : 'text-gray-400'} font-bold">🟢 Host Acknowledged: ${d.hostAcknowledged ? 'YES' : 'NO'}</p>
                             </div>
-                            ${hostPhoneClean && hostPhoneClean !== 'N/A' ? `
-                            <a href="https://wa.me/${hostPhoneClean}?text=${encodeURIComponent(overdueHostMsg)}" target="_blank" class="block text-center bg-amber-600 text-white font-bold py-1.5 rounded hover:bg-amber-700">
-                                📲 Send Host 1-Hour Extension Prompt
+                            ${d.hostEmail && d.hostEmail !== 'N/A' ? `
+                            <a href="${mailtoUrl}" class="block text-center bg-amber-600 text-white font-bold py-1.5 rounded hover:bg-amber-700">
+                                ✉️ Email Host 1-Hour Extension Prompt
                             </a>` : ''}
                         </div>`;
                 });
             } catch(e) { overdueList.innerHTML = `<p class="text-xs text-red-500">${e.message}</p>`; }
         };
 
-        // EXPORT FULL ENTRY PROOF TO CSV FOR GOOGLE SHEETS
+        // EXPORT FULL ENTRY PROOF TO CSV
         window.exportVisitsToCSV = async function() {
             try {
                 const querySnapshot = await getDocs(collection(db, "visits"));
-                let csv = "data:text/csv;charset=utf-8,Pass Type,Visitor/Parent Name,Phone,Student Name,Student Class,Host Name,Host Phone,Visit Date,Start Time,End Time,Check-In Time,Check-Out Time,Status,Host Acknowledged\n";
+                let csv = "data:text/csv;charset=utf-8,Pass Type,Visitor/Parent Name,Phone,Student Name,Student Class,Host Name,Host Email,Visit Date,Start Time,End Time,Check-In Time,Check-Out Time,Status,Host Acknowledged\n";
 
                 querySnapshot.forEach((docSnap) => {
                     const d = docSnap.data();
                     const formatTs = (ts) => ts && ts.toDate ? new Date(ts.toDate()).toLocaleString().replace(/,/g, '') : "N/A";
-                    csv += `"${d.passType}","${d.visitorName}","${d.phone}","${d.studentName}","${d.studentClass}","${d.hostName}","${d.hostPhone}","${d.visitDate}","${d.startTime}","${d.endTime}","${formatTs(d.checkInTime)}","${formatTs(d.checkOutTime)}","${d.status}","${d.hostAcknowledged ? 'YES' : 'NO'}"\n`;
+                    csv += `"${d.passType}","${d.visitorName}","${d.phone}","${d.studentName}","${d.studentClass}","${d.hostName}","${d.hostEmail}","${d.visitDate}","${d.startTime}","${d.endTime}","${formatTs(d.checkInTime)}","${formatTs(d.checkOutTime)}","${d.status}","${d.hostAcknowledged ? 'YES' : 'NO'}"\n`;
                 });
 
                 const link = document.createElement("a");
