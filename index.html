@@ -62,7 +62,6 @@
                         <input type="tel" id="v-host-phone" placeholder="60198765432" class="w-full p-2.5 border rounded-lg outline-none">
                     </div>
 
-                    <!-- NEW: DATE OF VISIT FIELD -->
                     <div>
                         <label class="text-xs font-bold text-gray-500">DATE OF VISIT</label>
                         <input type="date" id="v-date" class="w-full p-2.5 border rounded-lg outline-none bg-white">
@@ -120,7 +119,6 @@
             <button onclick="logout()" class="text-sm underline bg-purple-700 px-3 py-1 rounded">Logout</button>
         </header>
         <main class="flex-1 p-4 w-full max-w-md mx-auto space-y-4">
-            <!-- NEW: GOOGLE SHEETS COMPILATION / EXPORT BUTTON -->
             <button onclick="exportVisitsToCSV()" class="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 shadow flex items-center justify-center gap-2">
                 📊 Download Visits Data for Google Sheets
             </button>
@@ -170,7 +168,6 @@
         const auth = getAuth(app);
         let html5QrcodeScanner = null;
 
-        // Set default date input to today
         document.getElementById('v-date').valueAsDate = new Date();
 
         window.openSecurityDirectly = function() {
@@ -309,6 +306,16 @@
             }
         };
 
+        // ADMIN DECLINE PASS
+        window.declinePass = async function(docId) {
+            if(!confirm("Are you sure you want to decline this visitor request?")) return;
+            try {
+                await updateDoc(doc(db, "visits", docId), { status: "Declined" });
+            } catch(e) {
+                alert("Error declining pass: " + e.message);
+            }
+        };
+
         function listenForApprovals() {
             const q = query(collection(db, "visits"), where("status", "==", "Awaiting Approval"));
             onSnapshot(q, (snapshot) => {
@@ -320,16 +327,22 @@
                 snapshot.forEach(docSnap => {
                     const data = docSnap.data();
                     list.innerHTML += `
-                        <div class="bg-white p-4 rounded-lg border shadow-sm flex justify-between items-center">
+                        <div class="bg-white p-4 rounded-lg border shadow-sm flex flex-col gap-3">
                             <div>
                                 <p class="font-bold text-sm">${data.visitorName}</p>
                                 <p class="text-xs text-gray-500">Host: ${data.hostName} (${data.hostPhone || 'No Phone'})</p>
                                 <p class="text-xs text-blue-600 font-semibold">📅 ${data.visitDate || 'N/A'} | ⏰ ${data.startTime} - ${data.endTime}</p>
                             </div>
-                            <button onclick="approveAndSend('${docSnap.id}', '${data.visitId}', '${data.visitorName}', '${data.phone}', '${data.hostName}', '${data.visitDate}', '${data.startTime}', '${data.endTime}')" 
-                                    class="bg-green-500 text-white text-xs font-bold px-3 py-2 rounded hover:bg-green-600">
-                                Approve & Send
-                            </button>
+                            <div class="flex gap-2 justify-end">
+                                <button onclick="declinePass('${docSnap.id}')" 
+                                        class="bg-red-500 text-white text-xs font-bold px-3 py-2 rounded hover:bg-red-600">
+                                    Decline
+                                </button>
+                                <button onclick="approveAndSend('${docSnap.id}', '${data.visitId}', '${data.visitorName}', '${data.phone}', '${data.hostName}', '${data.visitDate}', '${data.startTime}', '${data.endTime}')" 
+                                        class="bg-green-500 text-white text-xs font-bold px-3 py-2 rounded hover:bg-green-600">
+                                    Approve & Send
+                                </button>
+                            </div>
                         </div>
                     `;
                 });
@@ -389,9 +402,21 @@
                         
                         if (data.status === "Awaiting Approval") {
                             statusDiv.innerHTML = `<span class="text-red-400 font-bold">❌ PASS NOT APPROVED YET</span>`;
+                        } else if (data.status === "Declined") {
+                            statusDiv.innerHTML = `<span class="text-red-400 font-bold">❌ PASS HAS BEEN DECLINED BY ADMIN</span>`;
                         } else if (data.status === "Pending") {
                             await updateDoc(doc(db, "visits", d.id), { status: "Checked-In", checkInTime: serverTimestamp() });
                             
+                            // AUTO NOTIFY HOST ON WHATSAPP
+                            const hostPhoneClean = (data.hostPhone || '').replace(/[^0-9]/g, '');
+                            const hostMessage = `Hello ${data.hostName}! 👋\n\nYour visitor *${data.visitorName}* has just ARRIVED and checked in at the security gate.`;
+                            const hostWaUrl = `https://wa.me/${hostPhoneClean}?text=${encodeURIComponent(hostMessage)}`;
+                            
+                            // Automatically open WhatsApp tab to alert the host
+                            if (hostPhoneClean) {
+                                window.open(hostWaUrl, '_blank');
+                            }
+
                             statusDiv.innerHTML = `
                                 <div class="bg-gray-800 p-4 rounded-xl text-left border border-green-500 w-full space-y-1.5">
                                     <div class="text-green-400 font-bold text-base border-b border-gray-700 pb-1 mb-2">✅ CHECK-IN SUCCESSFUL</div>
@@ -399,8 +424,14 @@
                                     <p><span class="text-gray-400 font-semibold">📱 Visitor Phone:</span> <span class="text-white">${data.phone}</span></p>
                                     <p><span class="text-gray-400 font-semibold">🏫 Host Name:</span> <span class="text-white font-bold">${data.hostName}</span></p>
                                     <p><span class="text-gray-400 font-semibold">📞 Host Phone:</span> <span class="text-blue-300 font-bold">${data.hostPhone || 'N/A'}</span></p>
-                                    <p><span class="text-gray-400 font-semibold">📅 Date of Visit:</span> <span class="text-purple-300 font-bold">${data.visitDate || 'N/A'}</span></p>
+                                    <p><span class="text-gray-400 font-semibold">📅 Date:</span> <span class="text-purple-300 font-bold">${data.visitDate || 'N/A'}</span></p>
                                     <p><span class="text-gray-400 font-semibold">⏰ Visiting Hours:</span> <span class="text-yellow-300 font-bold">${data.startTime} - ${data.endTime}</span></p>
+                                    
+                                    ${hostPhoneClean ? `
+                                        <a href="${hostWaUrl}" target="_blank" class="mt-3 block w-full text-center bg-green-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-green-700 text-xs shadow">
+                                            📲 Notify Host via WhatsApp Again
+                                        </a>
+                                    ` : ''}
                                 </div>
                             `;
                         } else {
