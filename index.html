@@ -118,12 +118,27 @@
             <h1 class="font-bold text-lg">Admin Approval Board</h1>
             <button onclick="logout()" class="text-sm underline bg-purple-700 px-3 py-1 rounded">Logout</button>
         </header>
-        <main class="flex-1 p-4 w-full max-w-md mx-auto space-y-4">
+        <main class="flex-1 p-4 w-full max-w-md mx-auto space-y-6">
             <button onclick="exportVisitsToCSV()" class="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 shadow flex items-center justify-center gap-2">
                 📊 Download Visits Data for Google Sheets
             </button>
-            <h2 class="font-bold text-gray-700 pt-2">Pending Requests</h2>
-            <div id="pending-list" class="space-y-3"></div>
+
+            <!-- OVERDUE / UNEXITED VISITORS MONITORING -->
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="font-bold text-amber-800 text-sm">⚠️ Unexited / Overdue Visitors</h2>
+                    <button onclick="checkOverdueVisitors()" class="text-xs bg-amber-600 text-white px-2 py-1 rounded hover:bg-amber-700">Refresh List</button>
+                </div>
+                <p class="text-xs text-amber-700 mb-3">Visitors currently checked-in who haven't scanned out.</p>
+                <div id="overdue-list" class="space-y-3">
+                    <p class="text-xs text-gray-500">Checking for overdue visitors...</p>
+                </div>
+            </div>
+
+            <div>
+                <h2 class="font-bold text-gray-700 mb-2">Pending Requests</h2>
+                <div id="pending-list" class="space-y-3"></div>
+            </div>
         </main>
     </div>
 
@@ -141,10 +156,20 @@
                 <button onclick="startScanner()" class="w-full bg-blue-600 font-bold py-3 rounded-xl hover:bg-blue-700 shadow">Start Camera</button>
                 <button onclick="stopScanner()" class="w-full bg-gray-700 font-bold py-3 rounded-xl hover:bg-gray-600 shadow">Stop Camera</button>
             </div>
-            <div id="scan-status" class="w-full p-4 rounded-xl text-center text-sm bg-gray-800 text-gray-300 min-h-[80px] flex items-center justify-center border border-gray-700">
+            <div id="scan-status" class="w-full p-4 rounded-xl text-center text-sm bg-gray-800 text-gray-300 min-h-[60px] flex items-center justify-center border border-gray-700">
                 Ready to scan QR Code...
             </div>
         </main>
+    </div>
+
+    <!-- NEW SCAN RESULT PAGE (REDIRECTED HERE AFTER SCAN) -->
+    <div id="result-screen" class="hidden flex-col min-h-screen bg-gray-900 text-white p-6 justify-center items-center">
+        <div id="result-content" class="w-full max-w-md bg-gray-800 p-6 rounded-2xl border border-gray-700 text-center space-y-4 shadow-xl">
+            <!-- Dynamic Result Content Injected Here -->
+        </div>
+        <button onclick="backToScanner()" class="mt-6 w-full max-w-md bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl shadow-lg flex items-center justify-center gap-2">
+            <span>📷</span> Scan Next Pass
+        </button>
     </div>
 
     <!-- FIREBASE AND JAVASCRIPT LOGIC -->
@@ -240,6 +265,7 @@
             if(role === 'admin') {
                 document.getElementById('admin-screen').classList.replace('hidden', 'flex');
                 listenForApprovals(); 
+                checkOverdueVisitors();
             }
             if(role === 'security') document.getElementById('security-screen').classList.replace('hidden', 'flex');
         }
@@ -274,6 +300,8 @@
                     visitId, visitorName: name, phone, hostName: host, hostPhone: hostPhone,
                     visitDate, startTime, endTime,
                     status: "Awaiting Approval",
+                    checkInTime: null,
+                    checkOutTime: null,
                     createdAt: serverTimestamp()
                 });
                 
@@ -296,7 +324,7 @@
                 await updateDoc(doc(db, "visits", docId), { status: "Pending" });
                 
                 const qrLink = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${visitId}`;
-                const textMessage = `Hello ${name}! 👋\n\nYour school visitor pass has been APPROVED.\n\n🎟️ *Pass ID:* ${visitId}\n👤 *Host:* ${host}\n📅 *Date:* ${visitDate}\n⏰ *Visiting Hours:* ${startTime} - ${endTime}\n\n📱 *View QR Code:*\n${qrLink}`;
+                const textMessage = `Hello ${name}! 👋\n\nYour school visitor pass has been APPROVED.\n\n🎟️ *Pass ID:* ${visitId}\n👤 *Host:* ${host}\n📅 *Date:* ${visitDate}\n⏰ *Visiting Hours:* ${startTime} - ${endTime}\n\n⚠️ *Important:* Please scan your QR code at the gate upon BOTH Entrance and Exit.\n\n📱 *View QR Code:*\n${qrLink}`;
                 const waUrl = `https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(textMessage)}`;
                 
                 waWindow.location.href = waUrl;
@@ -349,15 +377,73 @@
             });
         }
 
-        // GOOGLE SHEETS / CSV EXPORT FUNCTION
+        // OVERDUE / UNEXITED VISITORS CHECKER & NOTIFIER
+        window.checkOverdueVisitors = async function() {
+            const overdueList = document.getElementById('overdue-list');
+            overdueList.innerHTML = '<p class="text-xs text-gray-500">Scanning for unexited visitors...</p>';
+
+            try {
+                const q = query(collection(db, "visits"), where("status", "==", "Checked-In"));
+                const querySnapshot = await getDocs(q);
+
+                if (querySnapshot.empty) {
+                    overdueList.innerHTML = '<p class="text-xs text-green-700 font-semibold">✅ All checked-in visitors have scanned out properly.</p>';
+                    return;
+                }
+
+                overdueList.innerHTML = '';
+                querySnapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    const visitorPhoneClean = (data.phone || '').replace(/[^0-9]/g, '');
+                    const hostPhoneClean = (data.hostPhone || '').replace(/[^0-9]/g, '');
+
+                    const checkInTimeFormatted = data.checkInTime && data.checkInTime.toDate ? new Date(data.checkInTime.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'N/A';
+
+                    const visitorMsg = `Hello ${data.visitorName}! ⚠️ Our security records show you checked in at ${checkInTimeFormatted} on ${data.visitDate} but have NOT scanned out at the exit gate yet. Please remember to scan your QR code when leaving or inform school security.`;
+                    const hostMsg = `Hello ${data.hostName}! ⚠️ Notice regarding your visitor ${data.visitorName}: They checked in at ${checkInTimeFormatted} but have NOT scanned out to exit the campus yet. Please verify if they are still with you.`;
+
+                    const visitorWaUrl = `https://wa.me/${visitorPhoneClean}?text=${encodeURIComponent(visitorMsg)}`;
+                    const hostWaUrl = `https://wa.me/${hostPhoneClean}?text=${encodeURIComponent(hostMsg)}`;
+
+                    overdueList.innerHTML += `
+                        <div class="bg-white p-3 rounded-lg border border-amber-300 shadow-sm text-xs space-y-2">
+                            <div>
+                                <p class="font-bold text-gray-800">${data.visitorName} <span class="text-amber-600 font-normal">(In Campus)</span></p>
+                                <p class="text-gray-500">Host: ${data.hostName} | Date: ${data.visitDate || 'N/A'}</p>
+                                <p class="text-blue-600 font-semibold">Entered At: ${checkInTimeFormatted} (Expected End: ${data.endTime})</p>
+                            </div>
+                            <div class="flex flex-col gap-1.5 pt-1">
+                                <a href="${visitorWaUrl}" target="_blank" class="w-full bg-amber-600 text-white font-bold py-1.5 text-center rounded hover:bg-amber-700">
+                                    📲 Notify Visitor (Missing Exit Scan)
+                                </a>
+                                <a href="${hostWaUrl}" target="_blank" class="w-full bg-orange-600 text-white font-bold py-1.5 text-center rounded hover:bg-orange-700">
+                                    📲 Notify Host (Missing Exit Scan)
+                                </a>
+                            </div>
+                        </div>
+                    `;
+                });
+            } catch(e) {
+                overdueList.innerHTML = `<p class="text-xs text-red-500">Error loading overdue visitors: ${e.message}</p>`;
+            }
+        };
+
+        // GOOGLE SHEETS / CSV EXPORT FUNCTION WITH ENTRANCE & EXIT TIMESTAMPS
         window.exportVisitsToCSV = async function() {
             try {
                 const querySnapshot = await getDocs(collection(db, "visits"));
                 let csvContent = "data:text/csv;charset=utf-8,";
-                csvContent += "Visitor Name,Visitor Phone,Host Name,Host Phone,Date of Visit,Start Time,End Time,Status\n";
+                csvContent += "Visitor Name,Visitor Phone,Host Name,Host Phone,Date of Visit,Start Time,End Time,Check-In Time (Entrance),Check-Out Time (Exit),Status\n";
 
                 querySnapshot.forEach((docSnap) => {
                     const d = docSnap.data();
+
+                    const formatTimestamp = (ts) => {
+                        if (!ts) return "N/A";
+                        if (ts.toDate) return new Date(ts.toDate()).toLocaleString().replace(/,/g, '');
+                        return String(ts).replace(/,/g, '');
+                    };
+
                     const row = [
                         `"${d.visitorName || ''}"`,
                         `"${d.phone || ''}"`,
@@ -366,6 +452,8 @@
                         `"${d.visitDate || ''}"`,
                         `"${d.startTime || ''}"`,
                         `"${d.endTime || ''}"`,
+                        `"${formatTimestamp(d.checkInTime)}"`,
+                        `"${formatTimestamp(d.checkOutTime)}"`,
                         `"${d.status || ''}"`
                     ].join(",");
                     csvContent += row + "\n";
@@ -383,70 +471,100 @@
             }
         };
 
-        // CAMERA SCANNER
+        // HELPER FUNCTION: JUMP TO RESULT PAGE
+        function showResultPage(htmlContent) {
+            window.stopScanner();
+            document.getElementById('security-screen').classList.replace('flex', 'hidden');
+            document.getElementById('result-screen').classList.replace('hidden', 'flex');
+            document.getElementById('result-content').innerHTML = htmlContent;
+        }
+
+        // RETURN BACK TO SCANNER FROM RESULT PAGE
+        window.backToScanner = function() {
+            document.getElementById('result-screen').classList.replace('flex', 'hidden');
+            document.getElementById('security-screen').classList.replace('hidden', 'flex');
+            document.getElementById('scan-status').innerHTML = "Ready to scan QR Code...";
+            window.startScanner();
+        };
+
+        // CAMERA SCANNER WITH PAGE REDIRECTION LOGIC
         window.startScanner = function() {
             if (!html5QrcodeScanner) html5QrcodeScanner = new Html5Qrcode("reader");
             html5QrcodeScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 220, height: 220 } }, async (decodedText) => {
-                html5QrcodeScanner.pause();
                 const statusDiv = document.getElementById('scan-status');
-                statusDiv.innerHTML = `<span class="text-blue-400 font-bold">Checking: ${decodedText}...</span>`;
+                statusDiv.innerHTML = `<span class="text-blue-400 font-bold">Verifying Pass...</span>`;
 
                 const q = query(collection(db, "visits"), where("visitId", "==", decodedText.trim()));
                 const snaps = await getDocs(q);
 
                 if (snaps.empty) {
-                    statusDiv.innerHTML = `<span class="text-red-400 font-bold">❌ INVALID PASS ID</span>`;
+                    showResultPage(`
+                        <div class="text-red-500 text-5xl mb-2">❌</div>
+                        <h2 class="text-xl font-bold text-red-400">INVALID PASS</h2>
+                        <p class="text-sm text-gray-400">The scanned QR code is not recognized in the system.</p>
+                    `);
                 } else {
                     snaps.forEach(async (d) => {
                         const data = d.data();
                         
                         if (data.status === "Awaiting Approval") {
-                            statusDiv.innerHTML = `<span class="text-red-400 font-bold">❌ PASS NOT APPROVED YET</span>`;
+                            showResultPage(`
+                                <div class="text-yellow-500 text-5xl mb-2">⏳</div>
+                                <h2 class="text-xl font-bold text-yellow-400">NOT APPROVED</h2>
+                                <p class="text-sm text-gray-400">This pass is still awaiting admin approval.</p>
+                            `);
                         } else if (data.status === "Declined") {
-                            statusDiv.innerHTML = `<span class="text-red-400 font-bold">❌ PASS HAS BEEN DECLINED BY ADMIN</span>`;
-                        } else if (data.status === "Pending") {
+                            showResultPage(`
+                                <div class="text-red-500 text-5xl mb-2">🚫</div>
+                                <h2 class="text-xl font-bold text-red-400">PASS DECLINED</h2>
+                                <p class="text-sm text-gray-400">This pass request was rejected by school admin.</p>
+                            `);
+                        } 
+                        // 1. ENTRANCE SCAN (Pending -> Checked-In) => SHOW VISITOR DETAILS
+                        else if (data.status === "Pending") {
                             await updateDoc(doc(db, "visits", d.id), { status: "Checked-In", checkInTime: serverTimestamp() });
                             
-                            // AUTO NOTIFY HOST ON WHATSAPP
                             const hostPhoneClean = (data.hostPhone || '').replace(/[^0-9]/g, '');
                             const hostMessage = `Hello ${data.hostName}! 👋\n\nYour visitor *${data.visitorName}* has just ARRIVED and checked in at the security gate.`;
                             const hostWaUrl = `https://wa.me/${hostPhoneClean}?text=${encodeURIComponent(hostMessage)}`;
                             
-                            // Automatically open WhatsApp tab to alert the host
-                            if (hostPhoneClean) {
-                                window.open(hostWaUrl, '_blank');
-                            }
+                            if (hostPhoneClean) window.open(hostWaUrl, '_blank');
 
-                            statusDiv.innerHTML = `
-                                <div class="bg-gray-800 p-4 rounded-xl text-left border border-green-500 w-full space-y-1.5">
-                                    <div class="text-green-400 font-bold text-base border-b border-gray-700 pb-1 mb-2">✅ CHECK-IN SUCCESSFUL</div>
+                            showResultPage(`
+                                <div class="text-green-500 text-5xl mb-1">✅</div>
+                                <h2 class="text-xl font-bold text-green-400 border-b border-gray-700 pb-2 mb-3">ENTRANCE CHECK-IN SUCCESSFUL</h2>
+                                <div class="bg-gray-900 p-4 rounded-xl text-left space-y-2 border border-gray-700 text-sm">
                                     <p><span class="text-gray-400 font-semibold">👤 Visitor:</span> <span class="text-white font-bold">${data.visitorName}</span></p>
-                                    <p><span class="text-gray-400 font-semibold">📱 Visitor Phone:</span> <span class="text-white">${data.phone}</span></p>
-                                    <p><span class="text-gray-400 font-semibold">🏫 Host Name:</span> <span class="text-white font-bold">${data.hostName}</span></p>
-                                    <p><span class="text-gray-400 font-semibold">📞 Host Phone:</span> <span class="text-blue-300 font-bold">${data.hostPhone || 'N/A'}</span></p>
-                                    <p><span class="text-gray-400 font-semibold">📅 Date:</span> <span class="text-purple-300 font-bold">${data.visitDate || 'N/A'}</span></p>
+                                    <p><span class="text-gray-400 font-semibold">🏫 Host:</span> <span class="text-white font-bold">${data.hostName}</span></p>
+                                    <p><span class="text-gray-400 font-semibold">📅 Visit Date:</span> <span class="text-purple-300 font-bold">${data.visitDate || 'N/A'}</span></p>
                                     <p><span class="text-gray-400 font-semibold">⏰ Visiting Hours:</span> <span class="text-yellow-300 font-bold">${data.startTime} - ${data.endTime}</span></p>
-                                    
-                                    ${hostPhoneClean ? `
-                                        <a href="${hostWaUrl}" target="_blank" class="mt-3 block w-full text-center bg-green-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-green-700 text-xs shadow">
-                                            📲 Notify Host via WhatsApp Again
-                                        </a>
-                                    ` : ''}
+                                    <p><span class="text-gray-400 font-semibold">🕒 Check-In Time:</span> <span class="text-green-400 font-bold">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></p>
                                 </div>
-                            `;
-                        } else {
-                            statusDiv.innerHTML = `
-                                <div class="bg-gray-800 p-4 rounded-xl text-left border border-yellow-500 w-full space-y-1 text-xs">
-                                    <div class="text-yellow-400 font-bold text-sm mb-1">⚠️ PASS ALREADY CHECKED-IN</div>
-                                    <p><span class="text-gray-400">Visitor:</span> ${data.visitorName}</p>
-                                    <p><span class="text-gray-400">Host:</span> ${data.hostName} (${data.hostPhone || 'N/A'})</p>
-                                    <p><span class="text-gray-400">Date:</span> ${data.visitDate || 'N/A'}</p>
+                            `);
+                        } 
+                        // 2. EXIT SCAN (Checked-In -> Checked-Out) => DO NOT SHOW VISITOR DETAILS
+                        else if (data.status === "Checked-In") {
+                            await updateDoc(doc(db, "visits", d.id), { status: "Checked-Out", checkOutTime: serverTimestamp() });
+
+                            showResultPage(`
+                                <div class="text-blue-500 text-5xl mb-2">👋</div>
+                                <h2 class="text-xl font-bold text-blue-400 mb-2">EXIT CHECK-OUT SUCCESSFUL</h2>
+                                <div class="bg-gray-900 p-4 rounded-xl border border-gray-700 text-center">
+                                    <p class="text-green-400 font-bold text-sm">Pass status updated to Checked-Out.</p>
+                                    <p class="text-xs text-gray-400 mt-1">Campus exit timestamp recorded successfully.</p>
                                 </div>
-                            `;
+                            `);
+                        } 
+                        // 3. ALREADY CHECKED OUT
+                        else if (data.status === "Checked-Out") {
+                            showResultPage(`
+                                <div class="text-yellow-500 text-5xl mb-2">⚠️</div>
+                                <h2 class="text-xl font-bold text-yellow-400 mb-2">ALREADY CHECKED OUT</h2>
+                                <p class="text-sm text-gray-400">This pass has already been scanned out previously and is now closed.</p>
+                            `);
                         }
                     });
                 }
-                setTimeout(() => html5QrcodeScanner.resume(), 4000);
             }, () => {});
         };
 
