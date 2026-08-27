@@ -1,20 +1,30 @@
-<!DOCTYPE html>
+html_content = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>School Visitor Management System</title>
+    <title>School Visitor & Parent Pass System</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 </head>
 <body class="bg-gray-100 min-h-screen text-gray-800 font-sans">
 
+    <!-- HOST ACTION NOTIFICATION MODAL / SCREEN (HANDLES WHATSAPP CLICK ACTIONS) -->
+    <div id="action-screen" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl p-6 max-w-sm w-full text-center space-y-4 shadow-2xl">
+            <div id="action-icon" class="text-5xl">⚡</div>
+            <h2 id="action-title" class="text-xl font-bold text-gray-800">Processing Action...</h2>
+            <p id="action-msg" class="text-sm text-gray-600">Please wait while we update the pass record.</p>
+            <button onclick="closeActionModal()" class="w-full bg-blue-600 text-white font-bold py-2.5 rounded-lg">Dismiss</button>
+        </div>
+    </div>
+
     <!-- LOGIN SCREEN -->
     <div id="login-screen" class="flex flex-col items-center justify-center min-h-screen p-4">
         <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-sm border border-gray-200">
-            <h1 class="text-2xl font-bold text-center mb-1 text-blue-600">Visitor Pass System</h1>
-            <p class="text-xs text-gray-500 text-center mb-6">School Security & Admin Portal</p>
+            <h1 class="text-2xl font-bold text-center mb-1 text-blue-600">School Pass System</h1>
+            <p class="text-xs text-gray-500 text-center mb-6">Security & Admin Portal</p>
             <div class="space-y-4">
                 <input type="email" id="login-email" placeholder="Email Address" class="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
                 <input type="password" id="login-password" placeholder="Password (Min. 6 chars)" class="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
@@ -35,31 +45,75 @@
         </div>
     </div>
 
-    <!-- STAFF SCREEN (REQUEST PASS) -->
+    <!-- STAFF SCREEN (REQUEST & EXPRESS PASS) -->
     <div id="staff-screen" class="hidden flex-col min-h-screen">
         <header class="bg-blue-600 text-white p-4 flex justify-between items-center shadow-md">
-            <h1 class="font-bold text-lg">Staff Pass Request</h1>
+            <h1 class="font-bold text-lg">Staff & Parent Pass Portal</h1>
             <button onclick="logout()" class="text-sm underline bg-blue-700 px-3 py-1 rounded">Logout</button>
         </header>
         <main class="flex-1 p-4 w-full max-w-md mx-auto space-y-6">
             <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                <h2 class="font-bold text-gray-700 mb-4 border-b pb-2">Request Visitor Pass</h2>
+                <h2 class="font-bold text-gray-700 mb-4 border-b pb-2">Generate / Request Pass</h2>
+                
+                <!-- PASS TYPE SELECTION -->
+                <div class="mb-4">
+                    <label class="text-xs font-bold text-gray-500 block mb-1">PASS TYPE</label>
+                    <select id="v-type" onchange="togglePassTypeFields()" class="w-full p-2.5 border rounded-lg outline-none bg-blue-50 font-semibold text-blue-800 border-blue-300">
+                        <option value="Express Parent Pass">⚡ Express Parent Pickup Pass (Instant / No Admin Approval)</option>
+                        <option value="Parent Pass">👨‍👩‍👧 Standard Parent Pass (Requires Admin Approval)</option>
+                        <option value="General Visitor">👤 General Visitor / Contractor (Requires Admin Approval)</option>
+                    </select>
+                </div>
+
                 <div class="space-y-3">
-                    <div>
-                        <label class="text-xs font-bold text-gray-500">VISITOR NAME</label>
-                        <input type="text" id="v-name" placeholder="John Doe" class="w-full p-2.5 border rounded-lg outline-none">
+                    <!-- PARENT PASS SPECIFIC FIELDS -->
+                    <div id="parent-fields" class="space-y-3">
+                        <div>
+                            <label class="text-xs font-bold text-gray-500">PARENT NAME</label>
+                            <input type="text" id="p-name" placeholder="e.g. Sarah Connor" class="w-full p-2.5 border rounded-lg outline-none">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-gray-500">STUDENT NAME</label>
+                            <input type="text" id="p-student-name" placeholder="e.g. John Connor" class="w-full p-2.5 border rounded-lg outline-none">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-gray-500">STUDENT CLASS (Y1 - Y11)</label>
+                            <select id="p-student-class" class="w-full p-2.5 border rounded-lg outline-none bg-white">
+                                <option value="Year 1 (Y1)">Year 1 (Y1)</option>
+                                <option value="Year 2 (Y2)">Year 2 (Y2)</option>
+                                <option value="Year 3 (Y3)">Year 3 (Y3)</option>
+                                <option value="Year 4 (Y4)">Year 4 (Y4)</option>
+                                <option value="Year 5 (Y5)">Year 5 (Y5)</option>
+                                <option value="Year 6 (Y6)">Year 6 (Y6)</option>
+                                <option value="Year 7 (Y7)">Year 7 (Y7)</option>
+                                <option value="Year 8 (Y8)">Year 8 (Y8)</option>
+                                <option value="Year 9 (Y9)">Year 9 (Y9)</option>
+                                <option value="Year 10 (Y10)">Year 10 (Y10)</option>
+                                <option value="Year 11 (Y11)">Year 11 (Y11)</option>
+                            </select>
+                        </div>
                     </div>
+
+                    <!-- GENERAL VISITOR SPECIFIC FIELDS -->
+                    <div id="visitor-fields" class="space-y-3 hidden">
+                        <div>
+                            <label class="text-xs font-bold text-gray-500">VISITOR NAME</label>
+                            <input type="text" id="v-name" placeholder="e.g. Mark Lee" class="w-full p-2.5 border rounded-lg outline-none">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-gray-500">HOST NAME / TEACHER</label>
+                            <input type="text" id="v-host" placeholder="e.g. Mr. Smith" class="w-full p-2.5 border rounded-lg outline-none">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-gray-500">HOST PHONE NUMBER</label>
+                            <input type="tel" id="v-host-phone" placeholder="60198765432" class="w-full p-2.5 border rounded-lg outline-none">
+                        </div>
+                    </div>
+
+                    <!-- COMMON PHONE & DATE FIELDS -->
                     <div>
-                        <label class="text-xs font-bold text-gray-500">VISITOR WHATSAPP</label>
+                        <label class="text-xs font-bold text-gray-500">WHATSAPP NUMBER (FOR PASS DELIVERY)</label>
                         <input type="tel" id="v-phone" placeholder="60123456789" class="w-full p-2.5 border rounded-lg outline-none">
-                    </div>
-                    <div>
-                        <label class="text-xs font-bold text-gray-500">HOST NAME / TEACHER</label>
-                        <input type="text" id="v-host" placeholder="Mr. Smith" class="w-full p-2.5 border rounded-lg outline-none">
-                    </div>
-                    <div>
-                        <label class="text-xs font-bold text-gray-500">HOST PHONE NUMBER</label>
-                        <input type="tel" id="v-host-phone" placeholder="60198765432" class="w-full p-2.5 border rounded-lg outline-none">
                     </div>
 
                     <div>
@@ -71,43 +125,40 @@
                         <div>
                             <label class="text-xs font-bold text-gray-500">START TIME</label>
                             <select id="v-start-time" class="w-full p-2.5 border rounded-lg outline-none bg-white">
-                                <option value="8:00 AM">8:00 AM</option>
-                                <option value="9:00 AM">9:00 AM</option>
-                                <option value="10:00 AM">10:00 AM</option>
-                                <option value="11:00 AM">11:00 AM</option>
-                                <option value="12:00 PM">12:00 PM</option>
-                                <option value="1:00 PM">1:00 PM</option>
-                                <option value="2:00 PM">2:00 PM</option>
-                                <option value="3:00 PM">3:00 PM</option>
-                                <option value="4:00 PM">4:00 PM</option>
-                                <option value="5:00 PM">5:00 PM</option>
-                                <option value="6:00 PM">6:00 PM</option>
+                                <option value="08:00">8:00 AM</option>
+                                <option value="09:00">9:00 AM</option>
+                                <option value="10:00">10:00 AM</option>
+                                <option value="11:00">11:00 AM</option>
+                                <option value="12:00">12:00 PM</option>
+                                <option value="13:00">1:00 PM</option>
+                                <option value="14:00" selected>2:00 PM</option>
+                                <option value="15:00">3:00 PM</option>
+                                <option value="16:00">4:00 PM</option>
                             </select>
                         </div>
                         <div>
                             <label class="text-xs font-bold text-gray-500">END TIME</label>
                             <select id="v-end-time" class="w-full p-2.5 border rounded-lg outline-none bg-white">
-                                <option value="9:00 AM">9:00 AM</option>
-                                <option value="10:00 AM">10:00 AM</option>
-                                <option value="11:00 AM">11:00 AM</option>
-                                <option value="12:00 PM">12:00 PM</option>
-                                <option value="1:00 PM">1:00 PM</option>
-                                <option value="2:00 PM">2:00 PM</option>
-                                <option value="3:00 PM">3:00 PM</option>
-                                <option value="4:00 PM">4:00 PM</option>
-                                <option value="5:00 PM">5:00 PM</option>
-                                <option value="6:00 PM" selected>6:00 PM</option>
+                                <option value="09:00">9:00 AM</option>
+                                <option value="10:00">10:00 AM</option>
+                                <option value="11:00">11:00 AM</option>
+                                <option value="12:00">12:00 PM</option>
+                                <option value="13:00">1:00 PM</option>
+                                <option value="14:00">2:00 PM</option>
+                                <option value="15:00">3:00 PM</option>
+                                <option value="16:00">4:00 PM</option>
+                                <option value="17:00" selected>5:00 PM</option>
                             </select>
                         </div>
                     </div>
 
                     <button onclick="requestPass()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 shadow mt-2">
-                        Submit for Admin Approval
+                        Submit & Generate Pass
                     </button>
                 </div>
             </div>
             <div id="request-success" class="hidden bg-green-100 p-4 rounded-xl text-green-800 text-center font-bold border border-green-200">
-                ✅ Request sent to Head Admin!
+                ✅ Pass processed successfully!
             </div>
         </main>
     </div>
@@ -115,28 +166,74 @@
     <!-- HEAD ADMIN SCREEN -->
     <div id="admin-screen" class="hidden flex-col min-h-screen">
         <header class="bg-purple-600 text-white p-4 flex justify-between items-center shadow-md">
-            <h1 class="font-bold text-lg">Admin Approval Board</h1>
+            <h1 class="font-bold text-lg">Admin Approval & Management</h1>
             <button onclick="logout()" class="text-sm underline bg-purple-700 px-3 py-1 rounded">Logout</button>
         </header>
-        <main class="flex-1 p-4 w-full max-w-md mx-auto space-y-6">
-            <button onclick="exportVisitsToCSV()" class="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 shadow flex items-center justify-center gap-2">
-                📊 Download Visits Data for Google Sheets
-            </button>
+        <main class="flex-1 p-4 w-full max-w-md mx-auto space-y-4">
+            
+            <!-- ADMIN DIRECT VISITOR CREATION FORM -->
+            <div class="bg-white p-4 rounded-xl border border-purple-200 shadow-sm">
+                <h2 class="font-bold text-purple-800 text-sm mb-2 flex items-center justify-between">
+                    <span>➕ Direct Admin Pass Creation</span>
+                    <span class="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded">Auto-Approved</span>
+                </h2>
+                <div class="space-y-2 text-xs">
+                    <input type="text" id="adm-v-name" placeholder="Visitor/Parent Name" class="w-full p-2 border rounded">
+                    <div class="grid grid-cols-2 gap-2">
+                        <input type="text" id="adm-p-student" placeholder="Student Name (Optional)" class="w-full p-2 border rounded">
+                        <select id="adm-p-class" class="w-full p-2 border rounded bg-white">
+                            <option value="N/A">Class: N/A</option>
+                            <option value="Year 1 (Y1)">Year 1 (Y1)</option>
+                            <option value="Year 2 (Y2)">Year 2 (Y2)</option>
+                            <option value="Year 3 (Y3)">Year 3 (Y3)</option>
+                            <option value="Year 4 (Y4)">Year 4 (Y4)</option>
+                            <option value="Year 5 (Y5)">Year 5 (Y5)</option>
+                            <option value="Year 6 (Y6)">Year 6 (Y6)</option>
+                            <option value="Year 7 (Y7)">Year 7 (Y7)</option>
+                            <option value="Year 8 (Y8)">Year 8 (Y8)</option>
+                            <option value="Year 9 (Y9)">Year 9 (Y9)</option>
+                            <option value="Year 10 (Y10)">Year 10 (Y10)</option>
+                            <option value="Year 11 (Y11)">Year 11 (Y11)</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <input type="text" id="adm-v-host" placeholder="Host Name (Optional)" class="w-full p-2 border rounded">
+                        <input type="tel" id="adm-v-host-phone" placeholder="Host Phone (Optional)" class="w-full p-2 border rounded">
+                    </div>
+                    <input type="tel" id="adm-v-phone" placeholder="WhatsApp Number" class="w-full p-2 border rounded">
+                    <div class="grid grid-cols-3 gap-1">
+                        <input type="date" id="adm-v-date" class="p-2 border rounded text-[10px]">
+                        <input type="time" id="adm-v-start" value="08:00" class="p-2 border rounded text-[10px]">
+                        <input type="time" id="adm-v-end" value="17:00" class="p-2 border rounded text-[10px]">
+                    </div>
+                    <button onclick="adminDirectCreatePass()" class="w-full bg-purple-600 text-white font-bold py-2 rounded hover:bg-purple-700">
+                        Create & Send Pass Immediately
+                    </button>
+                </div>
+            </div>
 
-            <!-- OVERDUE / UNEXITED VISITORS MONITORING -->
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="exportVisitsToCSV()" class="w-full bg-emerald-600 text-white font-bold py-2.5 rounded-xl hover:bg-emerald-700 shadow text-xs">
+                    📊 Export CSV Data
+                </button>
+                <button onclick="deleteExpiredQRsOnly()" class="w-full bg-red-600 text-white font-bold py-2.5 rounded-xl hover:bg-red-700 shadow text-xs">
+                    🗑️ Clean Up Expired QRs
+                </button>
+            </div>
+
+            <!-- OVERDUE & HOST ALERT MONITORING -->
             <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
                 <div class="flex justify-between items-center mb-2">
-                    <h2 class="font-bold text-amber-800 text-sm">⚠️ Unexited / Overdue Visitors</h2>
-                    <button onclick="checkOverdueVisitors()" class="text-xs bg-amber-600 text-white px-2 py-1 rounded hover:bg-amber-700">Refresh List</button>
+                    <h2 class="font-bold text-amber-800 text-sm">⚠️ Unexited & Overdue Monitoring</h2>
+                    <button onclick="checkOverdueVisitors()" class="text-xs bg-amber-600 text-white px-2 py-1 rounded">Refresh</button>
                 </div>
-                <p class="text-xs text-amber-700 mb-3">Visitors currently checked-in who haven't scanned out.</p>
                 <div id="overdue-list" class="space-y-3">
                     <p class="text-xs text-gray-500">Checking for overdue visitors...</p>
                 </div>
             </div>
 
             <div>
-                <h2 class="font-bold text-gray-700 mb-2">Pending Requests</h2>
+                <h2 class="font-bold text-gray-700 mb-2 text-sm">Pending Approval Requests</h2>
                 <div id="pending-list" class="space-y-3"></div>
             </div>
         </main>
@@ -162,7 +259,7 @@
         </main>
     </div>
 
-    <!-- NEW SCAN RESULT PAGE (REDIRECTED HERE AFTER SCAN) -->
+    <!-- SCAN RESULT PAGE -->
     <div id="result-screen" class="hidden flex-col min-h-screen bg-gray-900 text-white p-6 justify-center items-center">
         <div id="result-content" class="w-full max-w-md bg-gray-800 p-6 rounded-2xl border border-gray-700 text-center space-y-4 shadow-xl">
             <!-- Dynamic Result Content Injected Here -->
@@ -192,8 +289,71 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
         let html5QrcodeScanner = null;
+        let activeUnsubscribe = null;
 
         document.getElementById('v-date').valueAsDate = new Date();
+        document.getElementById('adm-v-date').valueAsDate = new Date();
+
+        // CHECK URL FOR WHATSAPP ACTION LINKS (HOST ACKNOWLEDGE & EXTENSION)
+        window.addEventListener('DOMContentLoaded', async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const action = urlParams.get('action');
+            const docId = urlParams.get('id');
+
+            if (action && docId) {
+                const modal = document.getElementById('action-screen');
+                const title = document.getElementById('action-title');
+                const msg = document.getElementById('action-msg');
+                const icon = document.getElementById('action-icon');
+                modal.classList.remove('hidden');
+
+                try {
+                    if (action === 'ack') {
+                        await updateDoc(doc(db, "visits", docId), { hostAcknowledged: true, hostAckTime: serverTimestamp() });
+                        icon.innerText = "✅";
+                        title.innerText = "Readiness Confirmed!";
+                        msg.innerText = "Thank you! Security has been notified that you are prepared for this visitor.";
+                    } else if (action === 'extend1h') {
+                        const snap = await getDoc(doc(db, "visits", docId));
+                        if (snap.exists()) {
+                            const data = snap.data();
+                            let currentEndHour = parseInt((data.endTime || "17:00").split(":")[0]);
+                            let newEndHour = (currentEndHour + 1) % 24;
+                            let formattedEnd = (newEndHour < 10 ? '0' : '') + newEndHour + ":00";
+
+                            await updateDoc(doc(db, "visits", docId), { 
+                                endTime: formattedEnd, 
+                                extendedCount: (data.extendedCount || 0) + 1,
+                                hostNotifiedExtended: false 
+                            });
+
+                            icon.innerText = "⏰";
+                            title.innerText = "Pass Extended by 1 Hour";
+                            msg.innerText = `The visitor's pass end time has been updated to ${formattedEnd}.`;
+                        }
+                    }
+                } catch(e) {
+                    title.innerText = "Action Failed";
+                    msg.innerText = e.message;
+                }
+            }
+        });
+
+        window.closeActionModal = function() {
+            document.getElementById('action-screen').classList.add('hidden');
+            window.history.replaceState({}, document.title, window.location.pathname);
+        };
+
+        window.togglePassTypeFields = function() {
+            const passType = document.getElementById('v-type').value;
+            if (passType.includes('Parent')) {
+                document.getElementById('parent-fields').classList.remove('hidden');
+                document.getElementById('visitor-fields').classList.add('hidden');
+            } else {
+                document.getElementById('parent-fields').classList.add('hidden');
+                document.getElementById('visitor-fields').classList.remove('hidden');
+            }
+        };
 
         window.openSecurityDirectly = function() {
             document.getElementById('login-screen').classList.add('hidden');
@@ -203,64 +363,28 @@
         window.handleRegisterStaff = async function() {
             const email = document.getElementById('login-email').value.trim();
             const password = document.getElementById('login-password').value.trim();
-            const errorText = document.getElementById('login-error');
-
-            if (!email || !password) return alert("Enter email and password to register.");
-            if (password.length < 6) return alert("Password must be at least 6 characters.");
-
-            errorText.classList.add('hidden');
-
+            if (!email || !password) return alert("Enter email and password.");
             try {
                 const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-                const user = userCredential.user;
-
-                await setDoc(doc(db, "Users", user.uid), {
-                    email: email,
-                    role: "staff",
-                    createdAt: serverTimestamp()
-                });
-
+                await setDoc(doc(db, "Users", userCredential.user.uid), { email, role: "staff", createdAt: serverTimestamp() });
                 routeUserToScreen('staff');
-            } catch (error) {
-                errorText.innerText = "Registration failed: " + error.message;
-                errorText.classList.remove('hidden');
-            }
+            } catch (error) { alert("Registration failed: " + error.message); }
         };
 
         window.handleLogin = async function() {
             const email = document.getElementById('login-email').value.trim();
             const password = document.getElementById('login-password').value.trim();
-            const btn = document.getElementById('login-btn');
-            const errorText = document.getElementById('login-error');
-
-            if (!email || !password) return alert("Please enter email and password.");
-
-            btn.innerText = "Authenticating...";
-            errorText.classList.add('hidden');
-
+            if (!email || !password) return alert("Enter email and password.");
             try {
                 const userCredential = await signInWithEmailAndPassword(auth, email, password);
-                const user = userCredential.user;
-                const userDoc = await getDoc(doc(db, "Users", user.uid));
-                
-                if (userDoc.exists()) {
-                    routeUserToScreen(userDoc.data().role);
-                } else {
-                    throw new Error("No role assigned to this UID in Users collection.");
-                }
-            } catch (error) {
-                errorText.innerText = "Login failed: " + error.message;
-                errorText.classList.remove('hidden');
-            } finally {
-                btn.innerText = "Secure Login";
-            }
+                const userDoc = await getDoc(doc(db, "Users", userCredential.user.uid));
+                if (userDoc.exists()) routeUserToScreen(userDoc.data().role);
+                else routeUserToScreen('staff');
+            } catch (error) { alert("Login failed: " + error.message); }
         };
 
         function routeUserToScreen(role) {
             document.getElementById('login-screen').classList.add('hidden');
-            document.getElementById('login-email').value = '';
-            document.getElementById('login-password').value = '';
-
             if(role === 'staff') document.getElementById('staff-screen').classList.replace('hidden', 'flex');
             if(role === 'admin') {
                 document.getElementById('admin-screen').classList.replace('hidden', 'flex');
@@ -272,189 +396,215 @@
 
         window.logout = function() {
             signOut(auth).then(() => {
-                window.stopScanner();
-                document.querySelectorAll('div[id$="-screen"]').forEach(el => {
-                    el.classList.add('hidden');
-                    el.classList.remove('flex');
-                });
+                if(window.stopScanner) window.stopScanner();
+                if(activeUnsubscribe) activeUnsubscribe();
+                document.querySelectorAll('div[id$="-screen"]').forEach(el => el.classList.add('hidden'));
                 document.getElementById('login-screen').classList.replace('hidden', 'flex');
             });
         };
 
-        // STAFF REQUEST PASS
+        // STAFF REQUEST & EXPRESS PASS GENERATION
         window.requestPass = async function() {
-            const name = document.getElementById('v-name').value.trim();
+            const passType = document.getElementById('v-type').value;
             const phone = document.getElementById('v-phone').value.trim();
-            const host = document.getElementById('v-host').value.trim();
-            const hostPhone = document.getElementById('v-host-phone').value.trim();
             const visitDate = document.getElementById('v-date').value;
             const startTime = document.getElementById('v-start-time').value;
             const endTime = document.getElementById('v-end-time').value;
 
-            if(!name || !phone || !host || !hostPhone || !visitDate) return alert("Please fill in all fields including Visit Date.");
+            let name = '', studentName = '', studentClass = '', host = '', hostPhone = '';
+
+            if (passType.includes('Parent')) {
+                name = document.getElementById('p-name').value.trim();
+                studentName = document.getElementById('p-student-name').value.trim();
+                studentClass = document.getElementById('p-student-class').value;
+                if (!name || !studentName || !phone || !visitDate) return alert("Fill in Parent, Student, Phone, and Date.");
+            } else {
+                name = document.getElementById('v-name').value.trim();
+                host = document.getElementById('v-host').value.trim();
+                hostPhone = document.getElementById('v-host-phone').value.trim();
+                if (!name || !host || !phone || !visitDate) return alert("Fill in Visitor Name, Host, Phone, and Date.");
+            }
 
             const visitId = 'VISIT-' + Math.random().toString(36).substr(2, 7).toUpperCase();
-            
+            const isExpress = passType.includes('Express');
+            const initialStatus = isExpress ? "Pending" : "Awaiting Approval"; // Express auto-approved
+
             try {
-                await addDoc(collection(db, "visits"), {
-                    visitId, visitorName: name, phone, hostName: host, hostPhone: hostPhone,
-                    visitDate, startTime, endTime,
-                    status: "Awaiting Approval",
-                    checkInTime: null,
-                    checkOutTime: null,
-                    createdAt: serverTimestamp()
+                const docRef = await addDoc(collection(db, "visits"), {
+                    visitId, qrActive: true, passType, visitorName: name, phone,
+                    studentName: studentName || 'N/A', studentClass: studentClass || 'N/A',
+                    hostName: host || 'N/A', hostPhone: hostPhone || 'N/A',
+                    visitDate, startTime, endTime, status: initialStatus,
+                    hostAcknowledged: false, checkInTime: null, checkOutTime: null, createdAt: serverTimestamp()
                 });
-                
-                document.getElementById('request-success').classList.replace('hidden', 'block');
-                setTimeout(() => {
-                    document.getElementById('request-success').classList.replace('block', 'hidden');
-                    document.getElementById('v-name').value = '';
-                    document.getElementById('v-phone').value = '';
-                    document.getElementById('v-host').value = '';
-                    document.getElementById('v-host-phone').value = '';
-                }, 3000);
-            } catch (e) { alert("Error submitting request: " + e.message); }
+
+                if (isExpress) {
+                    const qrLink = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${visitId}`;
+                    const waMsg = `Hello ${name}! ⚡ Your *Express Parent Pickup Pass* is READY.\n\n🎟️ Pass ID: ${visitId}\n👧 Student: ${studentName} (${studentClass})\n📅 Date: ${visitDate}\n⏰ Hours: ${startTime} - ${endTime}\n\n📱 View QR Code:\n${qrLink}`;
+                    window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(waMsg)}`, '_blank');
+                }
+
+                document.getElementById('request-success').classList.remove('hidden');
+                setTimeout(() => document.getElementById('request-success').classList.add('hidden'), 3000);
+            } catch (e) { alert("Error generating pass: " + e.message); }
         };
 
-        // ADMIN APPROVE & SEND WHATSAPP
-        window.approveAndSend = async function(docId, visitId, name, phone, host, visitDate, startTime, endTime) {
-            const waWindow = window.open('', '_blank');
-            
+        // ADMIN DIRECT CREATION
+        window.adminDirectCreatePass = async function() {
+            const name = document.getElementById('adm-v-name').value.trim();
+            const studentName = document.getElementById('adm-p-student').value.trim() || 'N/A';
+            const studentClass = document.getElementById('adm-p-class').value;
+            const host = document.getElementById('adm-v-host').value.trim() || 'N/A';
+            const hostPhone = document.getElementById('adm-v-host-phone').value.trim() || 'N/A';
+            const phone = document.getElementById('adm-v-phone').value.trim();
+            const visitDate = document.getElementById('adm-v-date').value;
+            const startTime = document.getElementById('adm-v-start').value;
+            const endTime = document.getElementById('adm-v-end').value;
+
+            if (!name || !phone || !visitDate) return alert("Please fill in Visitor Name, Phone Number, and Visit Date.");
+
+            const visitId = 'VISIT-' + Math.random().toString(36).substr(2, 7).toUpperCase();
+
+            try {
+                const docRef = await addDoc(collection(db, "visits"), {
+                    visitId, qrActive: true, passType: "Admin Direct Pass", visitorName: name, phone,
+                    studentName, studentClass, hostName: host, hostPhone, visitDate, startTime, endTime,
+                    status: "Pending", hostAcknowledged: false, checkInTime: null, checkOutTime: null, createdAt: serverTimestamp()
+                });
+
+                const ackUrl = `${window.location.origin}${window.location.pathname}?action=ack&id=${docRef.id}`;
+                const qrLink = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${visitId}`;
+
+                let waMsg = `Hello ${name}! 👋 Your school pass has been CREATED by Admin.\n\n🎟️ Pass ID: ${visitId}\n📅 Date: ${visitDate}\n⏰ Hours: ${startTime} - ${endTime}\n\n📱 View QR Code:\n${qrLink}`;
+                window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(waMsg)}`, '_blank');
+
+                if (hostPhone !== 'N/A') {
+                    let hostMsg = `Hello ${host}! 👋 Visitor *${name}* is scheduled to visit you on ${visitDate} at ${startTime}.\n\n👉 Please click to confirm readiness: ${ackUrl}`;
+                    setTimeout(() => window.open(`https://wa.me/${hostPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(hostMsg)}`, '_blank'), 1000);
+                }
+
+                alert("Pass Created & Sent!");
+            } catch(e) { alert("Admin pass creation failed: " + e.message); }
+        };
+
+        // ADMIN APPROVE & SEND PASS
+        window.approveAndSend = async function(docId, visitId, passType, name, phone, studentName, studentClass, host, hostPhone, visitDate, startTime, endTime) {
             try {
                 await updateDoc(doc(db, "visits", docId), { status: "Pending" });
-                
+                const ackUrl = `${window.location.origin}${window.location.pathname}?action=ack&id=${docId}`;
                 const qrLink = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${visitId}`;
-                const textMessage = `Hello ${name}! 👋\n\nYour school visitor pass has been APPROVED.\n\n🎟️ *Pass ID:* ${visitId}\n👤 *Host:* ${host}\n📅 *Date:* ${visitDate}\n⏰ *Visiting Hours:* ${startTime} - ${endTime}\n\n⚠️ *Important:* Please scan your QR code at the gate upon BOTH Entrance and Exit.\n\n📱 *View QR Code:*\n${qrLink}`;
-                const waUrl = `https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(textMessage)}`;
-                
-                waWindow.location.href = waUrl;
-            } catch(e) {
-                waWindow.close();
-                alert("Error approving pass: " + e.message);
-            }
+
+                let textMessage = `Hello ${name}! 👋\n\nYour school pass [${passType}] has been APPROVED.\n\n🎟️ *Pass ID:* ${visitId}\n📅 *Date:* ${visitDate}\n⏰ *Hours:* ${startTime} - ${endTime}\n\n📱 *View QR Code:*\n${qrLink}`;
+                window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(textMessage)}`, '_blank');
+
+                const hostPhoneClean = (hostPhone || '').replace(/[^0-9]/g, '');
+                if (hostPhoneClean && hostPhoneClean !== 'N/A') {
+                    let hostNotice = `Hello ${host}! 👋 Visitor *${name}* is scheduled for today (${startTime} - ${endTime}).\n\n👉 Click link to confirm you are prepared: ${ackUrl}`;
+                    setTimeout(() => window.open(`https://wa.me/${hostPhoneClean}?text=${encodeURIComponent(hostNotice)}`, '_blank'), 1000);
+                }
+            } catch(e) { alert("Error approving pass: " + e.message); }
         };
 
-        // ADMIN DECLINE PASS
         window.declinePass = async function(docId) {
-            if(!confirm("Are you sure you want to decline this visitor request?")) return;
-            try {
-                await updateDoc(doc(db, "visits", docId), { status: "Declined" });
-            } catch(e) {
-                alert("Error declining pass: " + e.message);
-            }
+            if(confirm("Decline pass request?")) await updateDoc(doc(db, "visits", docId), { status: "Declined" });
         };
 
+        // LISTEN FOR PENDING APPROVAL REQUESTS IN ADMIN PANEL
         function listenForApprovals() {
             const q = query(collection(db, "visits"), where("status", "==", "Awaiting Approval"));
-            onSnapshot(q, (snapshot) => {
-                const list = document.getElementById('pending-list');
-                list.innerHTML = '';
-                
-                if(snapshot.empty) list.innerHTML = '<p class="text-sm text-gray-500">No pending requests.</p>';
+            activeUnsubscribe = onSnapshot(q, (snapshot) => {
+                const container = document.getElementById('pending-list');
+                container.innerHTML = '';
 
-                snapshot.forEach(docSnap => {
+                if (snapshot.empty) {
+                    container.innerHTML = '<p class="text-xs text-gray-500 bg-white p-3 rounded-lg border text-center">No pending pass requests.</p>';
+                    return;
+                }
+
+                snapshot.forEach((docSnap) => {
                     const data = docSnap.data();
-                    list.innerHTML += `
-                        <div class="bg-white p-4 rounded-lg border shadow-sm flex flex-col gap-3">
+                    const id = docSnap.id;
+                    const card = document.createElement('div');
+                    card.className = "bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-2 text-xs";
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start border-b pb-2">
                             <div>
-                                <p class="font-bold text-sm">${data.visitorName}</p>
-                                <p class="text-xs text-gray-500">Host: ${data.hostName} (${data.hostPhone || 'No Phone'})</p>
-                                <p class="text-xs text-blue-600 font-semibold">📅 ${data.visitDate || 'N/A'} | ⏰ ${data.startTime} - ${data.endTime}</p>
+                                <span class="font-bold text-gray-800 text-sm">${data.visitorName}</span>
+                                <span class="block text-[10px] text-blue-600 font-semibold">${data.passType}</span>
                             </div>
-                            <div class="flex gap-2 justify-end">
-                                <button onclick="declinePass('${docSnap.id}')" 
-                                        class="bg-red-500 text-white text-xs font-bold px-3 py-2 rounded hover:bg-red-600">
-                                    Decline
-                                </button>
-                                <button onclick="approveAndSend('${docSnap.id}', '${data.visitId}', '${data.visitorName}', '${data.phone}', '${data.hostName}', '${data.visitDate}', '${data.startTime}', '${data.endTime}')" 
-                                        class="bg-green-500 text-white text-xs font-bold px-3 py-2 rounded hover:bg-green-600">
-                                    Approve & Send
-                                </button>
-                            </div>
+                            <span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded">Awaiting Approval</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-1 text-gray-600">
+                            <div>📱 Phone: <span class="font-medium">${data.phone}</span></div>
+                            <div>📅 Date: <span class="font-medium">${data.visitDate}</span></div>
+                            <div>⏰ Time: <span class="font-medium">${data.startTime} - ${data.endTime}</span></div>
+                            ${data.studentName !== 'N/A' ? `<div>👧 Student: <span class="font-medium">${data.studentName} (${data.studentClass})</span></div>` : ''}
+                            ${data.hostName !== 'N/A' ? `<div>👤 Host: <span class="font-medium">${data.hostName}</span></div>` : ''}
+                        </div>
+                        <div class="flex gap-2 pt-2">
+                            <button onclick="approveAndSend('${id}', '${data.visitId}', '${data.passType}', '${data.visitorName}', '${data.phone}', '${data.studentName}', '${data.studentClass}', '${data.hostName}', '${data.hostPhone}', '${data.visitDate}', '${data.startTime}', '${data.endTime}')" class="flex-1 bg-green-600 text-white font-bold py-2 rounded hover:bg-green-700">
+                                ✅ Approve & Send Pass
+                            </button>
+                            <button onclick="declinePass('${id}')" class="bg-red-500 text-white font-bold px-3 py-2 rounded hover:bg-red-600">
+                                ❌ Decline
+                            </button>
                         </div>
                     `;
+                    container.appendChild(card);
                 });
             });
         }
 
-        // OVERDUE / UNEXITED VISITORS CHECKER & NOTIFIER
-        window.checkOverdueVisitors = async function() {
-            const overdueList = document.getElementById('overdue-list');
-            overdueList.innerHTML = '<p class="text-xs text-gray-500">Scanning for unexited visitors...</p>';
-
+        // CLEAN UP EXPIRED QR CODES
+        window.deleteExpiredQRsOnly = async function() {
             try {
-                const q = query(collection(db, "visits"), where("status", "==", "Checked-In"));
-                const querySnapshot = await getDocs(q);
+                const snapshot = await getDocs(query(collection(db, "visits"), where("qrActive", "==", true)));
+                const now = new Date();
+                let count = 0;
 
-                if (querySnapshot.empty) {
-                    overdueList.innerHTML = '<p class="text-xs text-green-700 font-semibold">✅ All checked-in visitors have scanned out properly.</p>';
-                    return;
-                }
-
-                overdueList.innerHTML = '';
-                querySnapshot.forEach((docSnap) => {
+                for (let docSnap of snapshot.docs) {
                     const data = docSnap.data();
-                    const visitorPhoneClean = (data.phone || '').replace(/[^0-9]/g, '');
-                    const hostPhoneClean = (data.hostPhone || '').replace(/[^0-9]/g, '');
-
-                    const checkInTimeFormatted = data.checkInTime && data.checkInTime.toDate ? new Date(data.checkInTime.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'N/A';
-
-                    const visitorMsg = `Hello ${data.visitorName}! ⚠️ Our security records show you checked in at ${checkInTimeFormatted} on ${data.visitDate} but have NOT scanned out at the exit gate yet. Please remember to scan your QR code when leaving or inform school security.`;
-                    const hostMsg = `Hello ${data.hostName}! ⚠️ Notice regarding your visitor ${data.visitorName}: They checked in at ${checkInTimeFormatted} but have NOT scanned out to exit the campus yet. Please verify if they are still with you.`;
-
-                    const visitorWaUrl = `https://wa.me/${visitorPhoneClean}?text=${encodeURIComponent(visitorMsg)}`;
-                    const hostWaUrl = `https://wa.me/${hostPhoneClean}?text=${encodeURIComponent(hostMsg)}`;
-
-                    overdueList.innerHTML += `
-                        <div class="bg-white p-3 rounded-lg border border-amber-300 shadow-sm text-xs space-y-2">
-                            <div>
-                                <p class="font-bold text-gray-800">${data.visitorName} <span class="text-amber-600 font-normal">(In Campus)</span></p>
-                                <p class="text-gray-500">Host: ${data.hostName} | Date: ${data.visitDate || 'N/A'}</p>
-                                <p class="text-blue-600 font-semibold">Entered At: ${checkInTimeFormatted} (Expected End: ${data.endTime})</p>
-                            </div>
-                            <div class="flex flex-col gap-1.5 pt-1">
-                                <a href="${visitorWaUrl}" target="_blank" class="w-full bg-amber-600 text-white font-bold py-1.5 text-center rounded hover:bg-amber-700">
-                                    📲 Notify Visitor (Missing Exit Scan)
-                                </a>
-                                <a href="${hostWaUrl}" target="_blank" class="w-full bg-orange-600 text-white font-bold py-1.5 text-center rounded hover:bg-orange-700">
-                                    📲 Notify Host (Missing Exit Scan)
-                                </a>
-                            </div>
-                        </div>
-                    `;
-                });
-            } catch(e) {
-                overdueList.innerHTML = `<p class="text-xs text-red-500">Error loading overdue visitors: ${e.message}</p>`;
+                    const visitDateTime = new Date(`${data.visitDate}T${data.endTime || '23:59'}`);
+                    if (now > visitDateTime) {
+                        await updateDoc(doc(db, "visits", docSnap.id), { qrActive: false });
+                        count++;
+                    }
+                }
+                alert(`Cleaned up ${count} expired QR codes.`);
+            } catch (e) {
+                alert("Error cleaning up expired QRs: " + e.message);
             }
         };
 
-        // GOOGLE SHEETS / CSV EXPORT FUNCTION WITH ENTRANCE & EXIT TIMESTAMPS
+        // EXPORT ALL VISITS TO CSV
         window.exportVisitsToCSV = async function() {
             try {
-                const querySnapshot = await getDocs(collection(db, "visits"));
+                const snapshot = await getDocs(collection(db, "visits"));
+                if (snapshot.empty) return alert("No visit records found to export.");
+
                 let csvContent = "data:text/csv;charset=utf-8,";
-                csvContent += "Visitor Name,Visitor Phone,Host Name,Host Phone,Date of Visit,Start Time,End Time,Check-In Time (Entrance),Check-Out Time (Exit),Status\n";
+                csvContent += "Visit ID,Visitor Name,Phone,Pass Type,Student Name,Student Class,Host Name,Host Phone,Visit Date,Start Time,End Time,Status,Checked In,Checked Out,Host Acknowledged\n";
 
-                querySnapshot.forEach((docSnap) => {
-                    const d = docSnap.data();
-
-                    const formatTimestamp = (ts) => {
-                        if (!ts) return "N/A";
-                        if (ts.toDate) return new Date(ts.toDate()).toLocaleString().replace(/,/g, '');
-                        return String(ts).replace(/,/g, '');
-                    };
-
+                snapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    const checkIn = data.checkInTime ? new Date(data.checkInTime.seconds * 1000).toLocaleString() : 'N/A';
+                    const checkOut = data.checkOutTime ? new Date(data.checkOutTime.seconds * 1000).toLocaleString() : 'N/A';
                     const row = [
-                        `"${d.visitorName || ''}"`,
-                        `"${d.phone || ''}"`,
-                        `"${d.hostName || ''}"`,
-                        `"${d.hostPhone || ''}"`,
-                        `"${d.visitDate || ''}"`,
-                        `"${d.startTime || ''}"`,
-                        `"${d.endTime || ''}"`,
-                        `"${formatTimestamp(d.checkInTime)}"`,
-                        `"${formatTimestamp(d.checkOutTime)}"`,
-                        `"${d.status || ''}"`
+                        `"${data.visitId || ''}"`,
+                        `"${data.visitorName || ''}"`,
+                        `"${data.phone || ''}"`,
+                        `"${data.passType || ''}"`,
+                        `"${data.studentName || ''}"`,
+                        `"${data.studentClass || ''}"`,
+                        `"${data.hostName || ''}"`,
+                        `"${data.hostPhone || ''}"`,
+                        `"${data.visitDate || ''}"`,
+                        `"${data.startTime || ''}"`,
+                        `"${data.endTime || ''}"`,
+                        `"${data.status || ''}"`,
+                        `"${checkIn}"`,
+                        `"${checkOut}"`,
+                        `"${data.hostAcknowledged ? 'YES' : 'NO'}"`
                     ].join(",");
                     csvContent += row + "\n";
                 });
@@ -462,113 +612,209 @@
                 const encodedUri = encodeURI(csvContent);
                 const link = document.createElement("a");
                 link.setAttribute("href", encodedUri);
-                link.setAttribute("download", `visitor_log_${new Date().toISOString().split('T')[0]}.csv`);
+                link.setAttribute("download", `school_visitor_logs_${new Date().toISOString().slice(0,10)}.csv`);
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-            } catch(e) {
-                alert("Export failed: " + e.message);
+            } catch (e) {
+                alert("Error exporting CSV: " + e.message);
             }
         };
 
-        // HELPER FUNCTION: JUMP TO RESULT PAGE
-        function showResultPage(htmlContent) {
+        // CHECK OVERDUE VISITORS
+        window.checkOverdueVisitors = async function() {
+            const container = document.getElementById('overdue-list');
+            container.innerHTML = '<p class="text-xs text-gray-500">Checking for overdue visitors...</p>';
+
+            try {
+                const snapshot = await getDocs(collection(db, "visits"));
+                const now = new Date();
+                let overdueCount = 0;
+                container.innerHTML = '';
+
+                snapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    const id = docSnap.id;
+
+                    if (data.checkInTime && !data.checkOutTime) {
+                        const endDateTime = new Date(`${data.visitDate}T${data.endTime || '17:00'}`);
+                        if (now > endDateTime) {
+                            overdueCount++;
+                            const card = document.createElement('div');
+                            card.className = "bg-white p-3 rounded-lg border border-amber-300 shadow-sm space-y-1 text-xs";
+                            card.innerHTML = `
+                                <div class="flex justify-between items-center">
+                                    <span class="font-bold text-red-600">${data.visitorName}</span>
+                                    <span class="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded font-bold">OVERDUE</span>
+                                </div>
+                                <div class="text-gray-600 text-[11px]">
+                                    📱 Phone: ${data.phone} | ⏰ Scheduled End: ${data.endTime}<br>
+                                    👤 Host: ${data.hostName} (${data.hostPhone})
+                                </div>
+                                <div class="flex gap-2 pt-1">
+                                    ${data.hostPhone && data.hostPhone !== 'N/A' ? `
+                                        <button onclick="window.open('https://wa.me/${data.hostPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent('⚠️ Alert: Visitor ' + data.visitorName + ' pass expired at ' + data.endTime + ' but has not checked out. Please escort to exit or request extension.')}', '_blank')" class="bg-amber-600 text-white font-bold px-2 py-1 rounded text-[10px]">
+                                            📲 Alert Host
+                                        </button>
+                                    ` : ''}
+                                    <button onclick="window.open('${window.location.origin}${window.location.pathname}?action=extend1h&id=${id}', '_self')" class="bg-blue-600 text-white font-bold px-2 py-1 rounded text-[10px]">
+                                        ⏰ Extend +1 Hr
+                                    </button>
+                                </div>
+                            `;
+                            container.appendChild(card);
+                        }
+                    }
+                });
+
+                if (overdueCount === 0) {
+                    container.innerHTML = '<p class="text-xs text-green-700 bg-green-50 p-2 rounded border border-green-200 text-center font-semibold">✅ No overdue visitors on campus.</p>';
+                }
+            } catch (e) {
+                container.innerHTML = `<p class="text-xs text-red-500">Error checking overdue: ${e.message}</p>`;
+            }
+        };
+
+        // SECURITY SCANNER FUNCTIONS
+        window.startScanner = function() {
+            const statusEl = document.getElementById('scan-status');
+            statusEl.innerText = "Initializing camera scanner...";
+
+            if (!html5QrcodeScanner) {
+                html5QrcodeScanner = new Html5Qrcode("reader");
+            }
+
+            html5QrcodeScanner.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 220, height: 220 } },
+                onScanSuccess,
+                (errorMessage) => { /* ignore scanning frame errors */ }
+            ).then(() => {
+                statusEl.innerText = "Camera Active. Scan QR Code...";
+            }).catch(err => {
+                statusEl.innerText = "Camera Start Error: " + err;
+            });
+        };
+
+        window.stopScanner = function() {
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.stop().then(() => {
+                    document.getElementById('scan-status').innerText = "Scanner stopped.";
+                }).catch(() => {});
+            }
+        };
+
+        async function onScanSuccess(decodedText) {
             window.stopScanner();
-            document.getElementById('security-screen').classList.replace('flex', 'hidden');
-            document.getElementById('result-screen').classList.replace('hidden', 'flex');
-            document.getElementById('result-content').innerHTML = htmlContent;
+            const resultScreen = document.getElementById('result-screen');
+            const resultContent = document.getElementById('result-content');
+            
+            document.getElementById('security-screen').classList.add('hidden');
+            resultScreen.classList.replace('hidden', 'flex');
+            resultContent.innerHTML = `<div class="p-4 text-gray-300">🔍 Verifying Pass ID: ${decodedText}...</div>`;
+
+            try {
+                const q = query(collection(db, "visits"), where("visitId", "==", decodedText.trim()));
+                const snapshot = await getDocs(q);
+
+                if (snapshot.empty) {
+                    resultContent.innerHTML = `
+                        <div class="text-5xl mb-2">❌</div>
+                        <h2 class="text-xl font-bold text-red-500">INVALID PASS</h2>
+                        <p class="text-xs text-gray-400">Pass ID not found in system.</p>
+                    `;
+                    return;
+                }
+
+                const docSnap = snapshot.docs[0];
+                const data = docSnap.data();
+                const docId = docSnap.id;
+
+                if (!data.qrActive || data.status === "Declined") {
+                    resultContent.innerHTML = `
+                        <div class="text-5xl mb-2">⛔</div>
+                        <h2 class="text-xl font-bold text-red-500">PASS INACTIVE / DECLINED</h2>
+                        <p class="text-xs text-gray-400">This pass is no longer active or was rejected.</p>
+                    `;
+                    return;
+                }
+
+                if (data.status === "Awaiting Approval") {
+                    resultContent.innerHTML = `
+                        <div class="text-5xl mb-2">⏳</div>
+                        <h2 class="text-xl font-bold text-amber-500">PENDING APPROVAL</h2>
+                        <p class="text-xs text-gray-400">This pass is waiting for Admin approval.</p>
+                    `;
+                    return;
+                }
+
+                const isCheckedIn = !!data.checkInTime;
+                const isCheckedOut = !!data.checkOutTime;
+
+                resultContent.innerHTML = `
+                    <div class="text-4xl mb-1">${isCheckedIn && !isCheckedOut ? '🟢' : '🎫'}</div>
+                    <h2 class="text-lg font-bold text-white">${data.visitorName}</h2>
+                    <span class="inline-block text-xs font-bold bg-blue-900 text-blue-200 px-2 py-0.5 rounded">${data.passType}</span>
+                    
+                    <div class="bg-gray-900 p-3 rounded-xl text-left text-xs space-y-1 text-gray-300 border border-gray-700">
+                        <p><strong>🎟️ Pass ID:</strong> ${data.visitId}</p>
+                        <p><strong>📱 Phone:</strong> ${data.phone}</p>
+                        <p><strong>📅 Date:</strong> ${data.visitDate}</p>
+                        <p><strong>⏰ Allowed Hours:</strong> ${data.startTime} - ${data.endTime}</p>
+                        ${data.studentName !== 'N/A' ? `<p><strong>👧 Student:</strong> ${data.studentName} (${data.studentClass})</p>` : ''}
+                        ${data.hostName !== 'N/A' ? `<p><strong>👤 Host:</strong> ${data.hostName}</p>` : ''}
+                        <p><strong>🤝 Host Prepared:</strong> ${data.hostAcknowledged ? '✅ YES' : '⏳ Pending'}</p>
+                    </div>
+
+                    <div id="scan-action-area" class="pt-2">
+                        ${!isCheckedIn ? `
+                            <button onclick="handleCheckIn('${docId}')" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl shadow">
+                                ✅ CHECK IN VISITOR
+                            </button>
+                        ` : (!isCheckedOut ? `
+                            <button onclick="handleCheckOut('${docId}')" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl shadow">
+                                🚪 CHECK OUT VISITOR
+                            </button>
+                        ` : `
+                            <div class="bg-gray-700 text-gray-300 p-3 rounded-xl font-bold text-xs">
+                                🏁 Pass already completed (Checked In & Out).
+                            </div>
+                        `)}
+                    </div>
+                `;
+
+            } catch (e) {
+                resultContent.innerHTML = `<div class="text-red-500 font-bold">Error scanning pass: ${e.message}</div>`;
+            }
         }
 
-        // RETURN BACK TO SCANNER FROM RESULT PAGE
+        window.handleCheckIn = async function(docId) {
+            try {
+                await updateDoc(doc(db, "visits", docId), { checkInTime: serverTimestamp() });
+                alert("Visitor checked in successfully!");
+                backToScanner();
+            } catch (e) { alert("Check-in error: " + e.message); }
+        };
+
+        window.handleCheckOut = async function(docId) {
+            try {
+                await updateDoc(doc(db, "visits", docId), { checkOutTime: serverTimestamp(), qrActive: false });
+                alert("Visitor checked out successfully!");
+                backToScanner();
+            } catch (e) { alert("Check-out error: " + e.message); }
+        };
+
         window.backToScanner = function() {
-            document.getElementById('result-screen').classList.replace('flex', 'hidden');
+            document.getElementById('result-screen').classList.add('hidden');
             document.getElementById('security-screen').classList.replace('hidden', 'flex');
-            document.getElementById('scan-status').innerHTML = "Ready to scan QR Code...";
-            window.startScanner();
+            startScanner();
         };
-
-        // CAMERA SCANNER WITH PAGE REDIRECTION LOGIC
-        window.startScanner = function() {
-            if (!html5QrcodeScanner) html5QrcodeScanner = new Html5Qrcode("reader");
-            html5QrcodeScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 220, height: 220 } }, async (decodedText) => {
-                const statusDiv = document.getElementById('scan-status');
-                statusDiv.innerHTML = `<span class="text-blue-400 font-bold">Verifying Pass...</span>`;
-
-                const q = query(collection(db, "visits"), where("visitId", "==", decodedText.trim()));
-                const snaps = await getDocs(q);
-
-                if (snaps.empty) {
-                    showResultPage(`
-                        <div class="text-red-500 text-5xl mb-2">❌</div>
-                        <h2 class="text-xl font-bold text-red-400">INVALID PASS</h2>
-                        <p class="text-sm text-gray-400">The scanned QR code is not recognized in the system.</p>
-                    `);
-                } else {
-                    snaps.forEach(async (d) => {
-                        const data = d.data();
-                        
-                        if (data.status === "Awaiting Approval") {
-                            showResultPage(`
-                                <div class="text-yellow-500 text-5xl mb-2">⏳</div>
-                                <h2 class="text-xl font-bold text-yellow-400">NOT APPROVED</h2>
-                                <p class="text-sm text-gray-400">This pass is still awaiting admin approval.</p>
-                            `);
-                        } else if (data.status === "Declined") {
-                            showResultPage(`
-                                <div class="text-red-500 text-5xl mb-2">🚫</div>
-                                <h2 class="text-xl font-bold text-red-400">PASS DECLINED</h2>
-                                <p class="text-sm text-gray-400">This pass request was rejected by school admin.</p>
-                            `);
-                        } 
-                        // 1. ENTRANCE SCAN (Pending -> Checked-In) => SHOW VISITOR DETAILS
-                        else if (data.status === "Pending") {
-                            await updateDoc(doc(db, "visits", d.id), { status: "Checked-In", checkInTime: serverTimestamp() });
-                            
-                            const hostPhoneClean = (data.hostPhone || '').replace(/[^0-9]/g, '');
-                            const hostMessage = `Hello ${data.hostName}! 👋\n\nYour visitor *${data.visitorName}* has just ARRIVED and checked in at the security gate.`;
-                            const hostWaUrl = `https://wa.me/${hostPhoneClean}?text=${encodeURIComponent(hostMessage)}`;
-                            
-                            if (hostPhoneClean) window.open(hostWaUrl, '_blank');
-
-                            showResultPage(`
-                                <div class="text-green-500 text-5xl mb-1">✅</div>
-                                <h2 class="text-xl font-bold text-green-400 border-b border-gray-700 pb-2 mb-3">ENTRANCE CHECK-IN SUCCESSFUL</h2>
-                                <div class="bg-gray-900 p-4 rounded-xl text-left space-y-2 border border-gray-700 text-sm">
-                                    <p><span class="text-gray-400 font-semibold">👤 Visitor:</span> <span class="text-white font-bold">${data.visitorName}</span></p>
-                                    <p><span class="text-gray-400 font-semibold">🏫 Host:</span> <span class="text-white font-bold">${data.hostName}</span></p>
-                                    <p><span class="text-gray-400 font-semibold">📅 Visit Date:</span> <span class="text-purple-300 font-bold">${data.visitDate || 'N/A'}</span></p>
-                                    <p><span class="text-gray-400 font-semibold">⏰ Visiting Hours:</span> <span class="text-yellow-300 font-bold">${data.startTime} - ${data.endTime}</span></p>
-                                    <p><span class="text-gray-400 font-semibold">🕒 Check-In Time:</span> <span class="text-green-400 font-bold">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></p>
-                                </div>
-                            `);
-                        } 
-                        // 2. EXIT SCAN (Checked-In -> Checked-Out) => DO NOT SHOW VISITOR DETAILS
-                        else if (data.status === "Checked-In") {
-                            await updateDoc(doc(db, "visits", d.id), { status: "Checked-Out", checkOutTime: serverTimestamp() });
-
-                            showResultPage(`
-                                <div class="text-blue-500 text-5xl mb-2">👋</div>
-                                <h2 class="text-xl font-bold text-blue-400 mb-2">EXIT CHECK-OUT SUCCESSFUL</h2>
-                                <div class="bg-gray-900 p-4 rounded-xl border border-gray-700 text-center">
-                                    <p class="text-green-400 font-bold text-sm">Pass status updated to Checked-Out.</p>
-                                    <p class="text-xs text-gray-400 mt-1">Campus exit timestamp recorded successfully.</p>
-                                </div>
-                            `);
-                        } 
-                        // 3. ALREADY CHECKED OUT
-                        else if (data.status === "Checked-Out") {
-                            showResultPage(`
-                                <div class="text-yellow-500 text-5xl mb-2">⚠️</div>
-                                <h2 class="text-xl font-bold text-yellow-400 mb-2">ALREADY CHECKED OUT</h2>
-                                <p class="text-sm text-gray-400">This pass has already been scanned out previously and is now closed.</p>
-                            `);
-                        }
-                    });
-                }
-            }, () => {});
-        };
-
-        window.stopScanner = () => html5QrcodeScanner?.stop();
     </script>
 </body>
 </html>
+"""
+
+with open("school_pass_system.html", "w", encoding="utf-8") as f:
+    f.write(html_content)
+
+print("HTML generated successfully! Length:", len(html_content))
