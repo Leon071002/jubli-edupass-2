@@ -7,6 +7,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <!-- EmailJS SDK for browser email delivery -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen text-gray-800 font-sans">
 
@@ -170,13 +172,6 @@
             <button onclick="logout()" class="text-sm underline bg-purple-700 px-3 py-1 rounded">Logout</button>
         </header>
         <main class="flex-1 p-4 w-full max-w-md mx-auto space-y-4">
-
-            <!-- HOST EMAIL NOTIFICATION FALLBACK BANNER -->
-            <div id="host-notify-banner" class="hidden bg-blue-50 border-2 border-blue-300 rounded-xl p-3 text-xs text-blue-800 flex items-center justify-between gap-3">
-                <span id="host-notify-text" class="flex-1 font-semibold">Host email notification ready.</span>
-                <a id="host-notify-link" href="#" onclick="dismissHostNotifyBanner()" class="bg-blue-600 text-white font-bold px-3 py-1.5 rounded whitespace-nowrap">✉️ Send Host Email</a>
-                <button onclick="dismissHostNotifyBanner()" class="text-blue-400 hover:text-blue-700 font-bold px-1" title="Dismiss">✕</button>
-            </div>
             
             <!-- ADMIN DIRECT VISITOR CREATION FORM -->
             <div class="bg-white p-4 rounded-xl border border-purple-200 shadow-sm">
@@ -297,6 +292,11 @@
         const auth = getAuth(app);
         let html5QrcodeScanner = null;
 
+        // EMAILJS CONFIGURATION (Injected with your exact keys)
+        const EMAILJS_SERVICE_ID = "service_z2z2kip";
+        const EMAILJS_TEMPLATE_ID = "template_n3c1hmb";
+        const EMAILJS_PUBLIC_KEY = "E2WxVKJkkhBIuNT6H";
+
         document.getElementById('v-date').valueAsDate = new Date();
         document.getElementById('adm-v-date').valueAsDate = new Date();
 
@@ -329,8 +329,7 @@
 
                             await updateDoc(doc(db, "visits", docId), { 
                                 endTime: formattedEnd, 
-                                extendedCount: (data.extendedCount || 0) + 1,
-                                hostNotifiedExtended: false 
+                                extendedCount: (data.extendedCount || 0) + 1 
                             });
 
                             icon.innerText = "⏰";
@@ -343,6 +342,9 @@
                     msg.innerText = e.message;
                 }
             }
+
+            // Start background timer check for 15-min and exact-time notifications
+            setInterval(checkScheduledHostEmails, 60000); 
         });
 
         window.closeActionModal = function() {
@@ -439,13 +441,18 @@
                     studentName: studentName || 'N/A', studentClass: studentClass || 'N/A',
                     hostName: host || 'N/A', hostEmail: hostEmail || 'N/A',
                     visitDate, startTime, endTime, status: initialStatus,
-                    hostAcknowledged: false, checkInTime: null, checkOutTime: null, createdAt: serverTimestamp()
+                    hostAcknowledged: false, emailApprovalSent: false, email15MinSent: false, emailOnTimeSent: false,
+                    checkInTime: null, checkOutTime: null, createdAt: serverTimestamp()
                 });
 
                 if (isExpress) {
                     const qrLink = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${visitId}`;
                     const waMsg = `Hello ${name}! ⚡ Your *Express Parent Pickup Pass* is READY.\n\n🎟️ Pass ID: ${visitId}\n👧 Student: ${studentName} (${studentClass})\n📅 Date: ${visitDate}\n⏰ Hours: ${startTime} - ${endTime}\n\n📱 View QR Code:\n${qrLink}`;
                     window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(waMsg)}`, '_blank');
+                    
+                    if (hostEmail && hostEmail !== 'N/A') {
+                        sendHostEmailNotification(docRef.id, host, hostEmail, name, visitDate, startTime, endTime, "Pass Approved & Created");
+                    }
                 }
 
                 document.getElementById('request-success').classList.remove('hidden');
@@ -473,17 +480,17 @@
                 const docRef = await addDoc(collection(db, "visits"), {
                     visitId, qrActive: true, passType: "Admin Direct Pass", visitorName: name, phone,
                     studentName, studentClass, hostName: host, hostEmail, visitDate, startTime, endTime,
-                    status: "Pending", hostAcknowledged: false, checkInTime: null, checkOutTime: null, createdAt: serverTimestamp()
+                    status: "Pending", hostAcknowledged: false, emailApprovalSent: false, email15MinSent: false, emailOnTimeSent: false,
+                    checkInTime: null, checkOutTime: null, createdAt: serverTimestamp()
                 });
 
-                const ackUrl = `${window.location.origin}${window.location.pathname}?action=ack&id=${docRef.id}`;
                 const qrLink = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${visitId}`;
-
                 let waMsg = `Hello ${name}! 👋 Your school pass has been CREATED by Admin.\n\n🎟️ Pass ID: ${visitId}\n📅 Date: ${visitDate}\n⏰ Hours: ${startTime} - ${endTime}\n\n📱 View QR Code:\n${qrLink}`;
                 window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(waMsg)}`, '_blank');
 
-                // Notify host via email
-                notifyHostEmail(host, hostEmail, name, visitDate, startTime, endTime, ackUrl);
+                if (hostEmail && hostEmail !== 'N/A') {
+                    sendHostEmailNotification(docRef.id, host, hostEmail, name, visitDate, startTime, endTime, "Pass Approved & Created");
+                }
 
                 alert("Pass Created & Sent!");
             } catch(e) { alert("Admin pass creation failed: " + e.message); }
@@ -493,14 +500,15 @@
         window.approveAndSend = async function(docId, visitId, passType, name, phone, studentName, studentClass, host, hostEmail, visitDate, startTime, endTime) {
             try {
                 await updateDoc(doc(db, "visits", docId), { status: "Pending" });
-                const ackUrl = `${window.location.origin}${window.location.pathname}?action=ack&id=${docId}`;
                 const qrLink = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${visitId}`;
 
                 let textMessage = `Hello ${name}! 👋\n\nYour school pass [${passType}] has been APPROVED.\n\n🎟️ *Pass ID:* ${visitId}\n📅 *Date:* ${visitDate}\n⏰ *Hours:* ${startTime} - ${endTime}\n\n📱 *View QR Code:*\n${qrLink}`;
                 window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(textMessage)}`, '_blank');
 
-                // Notify host via email
-                notifyHostEmail(host, hostEmail, name, visitDate, startTime, endTime, ackUrl);
+                if (hostEmail && hostEmail !== 'N/A') {
+                    sendHostEmailNotification(docId, host, hostEmail, name, visitDate, startTime, endTime, "Pass Approved");
+                }
+                alert("Pass Approved, WhatsApp and Host Email sent successfully!");
             } catch(e) { alert("Error approving pass: " + e.message); }
         };
 
@@ -508,28 +516,65 @@
             if(confirm("Decline pass request?")) await updateDoc(doc(db, "visits", docId), { status: "Declined" });
         };
 
-        // HOST EMAIL NOTIFICATION 
-        function notifyHostEmail(host, hostEmail, visitorName, visitDate, startTime, endTime, ackUrl) {
-            if (!hostEmail || hostEmail === 'N/A') return;
+        // EMAIL AUTOMATION FUNCTIONS VIA EMAILJS
+        async function sendHostEmailNotification(docId, host, hostEmail, visitorName, visitDate, startTime, endTime, notificationType) {
+            const ackUrl = `${window.location.origin}${window.location.pathname}?action=ack&id=${docId}`;
+            
+            const templateParams = {
+                to_email: hostEmail,
+                host_name: host,
+                visitor_name: visitorName,
+                visit_date: visitDate,
+                start_time: startTime,
+                end_time: endTime,
+                notification_type: notificationType,
+                acknowledgment_link: ackUrl
+            };
 
-            const subject = encodeURIComponent(`Visitor Notification: ${visitorName} scheduled for ${visitDate}`);
-            const body = encodeURIComponent(`Hello ${host},\n\nVisitor ${visitorName} is scheduled to visit you on ${visitDate} (${startTime} - ${endTime}).\n\nPlease click the link below to confirm your readiness:\n${ackUrl}`);
-            const mailtoUrl = `mailto:${hostEmail}?subject=${subject}&body=${body}`;
-
-            showHostNotifyBanner(host, visitorName, mailtoUrl);
+            try {
+                await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams, EMAILJS_PUBLIC_KEY);
+                if (notificationType === "Pass Approved" || notificationType === "Pass Approved & Created") {
+                    await updateDoc(doc(db, "visits", docId), { emailApprovalSent: true });
+                }
+            } catch (err) {
+                console.error("Email dispatch error:", err);
+            }
         }
 
-        window.dismissHostNotifyBanner = function() {
-            document.getElementById('host-notify-banner').classList.add('hidden');
-        };
+        // BACKGROUND TIMER TO CHECK 15-MIN AND ON-TIME NOTIFICATIONS
+        async function checkScheduledHostEmails() {
+            try {
+                const now = new Date();
+                const todayStr = now.toISOString().split('T')[0];
+                const currentHours = now.getHours();
+                const currentMinutes = now.getMinutes();
+                const currentTimeVal = currentHours * 60 + currentMinutes;
 
-        function showHostNotifyBanner(host, visitorName, mailtoUrl) {
-            const banner = document.getElementById('host-notify-banner');
-            if (!banner) return;
-            document.getElementById('host-notify-text').innerText = `Host email ready ✅ — tap to email ${host} about ${visitorName}:`;
-            document.getElementById('host-notify-link').href = mailtoUrl;
-            banner.classList.remove('hidden');
-            banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                const q = query(collection(db, "visits"), where("status", "==", "Pending"), where("visitDate", "==", todayStr));
+                const querySnapshot = await getDocs(q);
+
+                querySnapshot.forEach(async (docSnap) => {
+                    const d = docSnap.data();
+                    if (!d.hostEmail || d.hostEmail === 'N/A') return;
+
+                    const [startH, startM] = d.startTime.split(':').map(Number);
+                    const startTimeVal = startH * 60 + startM;
+
+                    // 15 Minutes Before Visit Notification
+                    if (!d.email15MinSent && (startTimeVal - currentTimeVal === 15)) {
+                        await sendHostEmailNotification(docSnap.id, d.hostName, d.hostEmail, d.visitorName, d.visitDate, d.startTime, d.endTime, "Upcoming Visit in 15 Minutes");
+                        await updateDoc(doc(db, "visits", docSnap.id), { email15MinSent: true });
+                    }
+
+                    // Exactly On Time Notification
+                    if (!d.emailOnTimeSent && (currentTimeVal >= startTimeVal && currentTimeVal <= startTimeVal + 5)) {
+                        await sendHostEmailNotification(docSnap.id, d.hostName, d.hostEmail, d.visitorName, d.visitDate, d.startTime, d.endTime, "Visit Starting Now");
+                        await updateDoc(doc(db, "visits", docSnap.id), { emailOnTimeSent: true });
+                    }
+                });
+            } catch (e) {
+                console.error("Error checking scheduled emails:", e);
+            }
         }
 
         // DELETE EXPIRED QR CODES
@@ -575,7 +620,7 @@
             });
         }
 
-        // OVERDUE & HOST 1-HOUR EXTENSION MONITORING VIA EMAIL
+        // OVERDUE & HOST 1-HOUR EXTENSION MONITORING
         window.checkOverdueVisitors = async function() {
             const overdueList = document.getElementById('overdue-list');
             overdueList.innerHTML = '<p class="text-xs text-gray-500">Checking for unexited visitors...</p>';
@@ -687,7 +732,7 @@
                                     <p><span class="text-gray-400">Type:</span> <span class="text-blue-400 font-bold">${data.passType}</span></p>
                                     <p><span class="text-gray-400">Name:</span> <span class="text-white font-bold">${data.visitorName}</span></p>
                                     ${data.studentName !== 'N/A' ? `<p><span class="text-gray-400">Student:</span> <span class="text-yellow-300 font-bold">${data.studentName} (${data.studentClass})</span></p>` : `<p><span class="text-gray-400">Host:</span> <span class="text-white font-bold">${data.hostName}</span></p>`}
-                                    <p><span class="text-gray-400">Host Readiness:</span> <span class="${data.hostAcknowledged ? 'text-green-400 font-bold' : 'text-gray-400'}">${data.hostAcknowledged ? '🟢 ACKNOWLEDGED PREPARED' : '⚪ Not Acknowledged Yet'}</span></p>
+                                    <p><span class="text-gray-400">Host Readiness:</span> <span class="${data.hostAcknowledged ? 'text-green-400 font-bold' : 'text-amber-400 font-bold'}">${data.hostAcknowledged ? '🟢 ACKNOWLEDGED (Ready)' : '🟡 PENDING HOST CONFIRMATION'}</span></p>
                                     <p><span class="text-gray-400">Check-In Time:</span> <span class="text-green-400 font-bold">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></p>
                                 </div>`);
                         } else if (data.status === "Checked-In") {
