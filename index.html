@@ -291,7 +291,38 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
        let html5QrcodeScanner = null;
-let isProcessingScan = false; // Prevents double-scanning
+let isProcessingScan = false;// Prevents double-scanning
+
+        window.forceAdminCheckOut = async function(docId, visitorName, hostName, phone, visitDate, startTime, endTime) {
+            if(!confirm(`Are you sure you want to manually check out ${visitorName}?`)) return;
+            
+            try {
+                // Update Firebase Status
+                await updateDoc(doc(db, "visits", docId), { 
+                    status: "Checked-Out", 
+                    checkOutTime: serverTimestamp() 
+                });
+
+                // Sync the manual check-out to Google Sheets
+                syncToGoogleSheets({
+                    visitorName: visitorName,
+                    hostName: hostName || "N/A",
+                    phone: phone,
+                    visitDate: visitDate,
+                    startTime: startTime,
+                    endTime: endTime,
+                    checkInTime: "Admin Manual Action", 
+                    checkOutTime: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                    status: "Checked-Out"
+                });
+
+                // Refresh the list immediately
+                checkOverdueVisitors();
+                alert(`✅ ${visitorName} has been checked out and removed from the overdue list.`);
+            } catch(e) {
+                alert("Error checking out visitor: " + e.message);
+            }
+        };
 
         // EMAILJS CONFIGURATION (Injected with your exact keys)
         const EMAILJS_SERVICE_ID = "service_z2z2kip";
@@ -320,7 +351,7 @@ let isProcessingScan = false; // Prevents double-scanning
                         icon.innerText = "✅";
                         title.innerText = "Readiness Confirmed!";
                         msg.innerText = "Thank you! Security has been notified that you are prepared for this visitor.";
-                    } else if (action === 'extend1h') {
+                   } else if (action === 'extend1h') {
                         const snap = await getDoc(doc(db, "visits", docId));
                         if (snap.exists()) {
                             const data = snap.data();
@@ -330,7 +361,8 @@ let isProcessingScan = false; // Prevents double-scanning
 
                             await updateDoc(doc(db, "visits", docId), { 
                                 endTime: formattedEnd, 
-                                extendedCount: (data.extendedCount || 0) + 1 
+                                extendedCount: (data.extendedCount || 0) + 1,
+                                emailOverdueSent: false // Resets the flag for future overdue checks
                             });
 
                             icon.innerText = "⏰";
@@ -448,7 +480,7 @@ let isProcessingScan = false; // Prevents double-scanning
 
                 if (isExpress) {
                     const qrLink = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${visitId}`;
-                    const waMsg = `Hello ${name}! ⚡ Your *Express Parent Pickup Pass* is READY.\n\n🎟️ Pass ID: ${visitId}\n👧 Student: ${studentName} (${studentClass})\n📅 Date: ${visitDate}\n⏰ Hours: ${startTime} - ${endTime}\n\n📱 View QR Code:\n${qrLink}`;
+                    const waMsg = `Hello ${name}! ⚡ Your *Express Parent Pickup Pass* is READY.\n\n🎟️ Pass ID: ${visitId}\n👧 Student: ${studentName} (${studentClass})\n📅 Date: ${visitDate}\n⏰ Hours: ${startTime} - ${endTime}\n\n📱 *Please show the QR code to the security during entry and exit* View QR Code:\n${qrLink}`;
                     window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(waMsg)}`, '_blank');
                     
                     if (hostEmail && hostEmail !== 'N/A') {
@@ -486,7 +518,7 @@ let isProcessingScan = false; // Prevents double-scanning
                 });
 
                 const qrLink = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${visitId}`;
-                let waMsg = `Hello ${name}! 👋 Your school pass has been CREATED by Admin.\n\n🎟️ Pass ID: ${visitId}\n📅 Date: ${visitDate}\n⏰ Hours: ${startTime} - ${endTime}\n\n📱 View QR Code:\n${qrLink}`;
+                let waMsg = `Hello ${name}! 👋 Your school pass has been CREATED by Admin.\n\n🎟️ Pass ID: ${visitId}\n📅 Date: ${visitDate}\n⏰ Hours: ${startTime} - ${endTime}\n\n📱 Please show the QR code to the security during entry and exit View QR Code:\n${qrLink}`;
                 window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(waMsg)}`, '_blank');
 
                 if (hostEmail && hostEmail !== 'N/A') {
@@ -503,7 +535,7 @@ let isProcessingScan = false; // Prevents double-scanning
                 await updateDoc(doc(db, "visits", docId), { status: "Pending" });
                 const qrLink = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${visitId}`;
 
-                let textMessage = `Hello ${name}! 👋\n\nYour school pass [${passType}] has been APPROVED.\n\n🎟️ *Pass ID:* ${visitId}\n📅 *Date:* ${visitDate}\n⏰ *Hours:* ${startTime} - ${endTime}\n\n📱 *View QR Code:*\n${qrLink}`;
+                let textMessage = `Hello ${name}! 👋\n\nYour school pass [${passType}] has been APPROVED.\n\n🎟️ *Pass ID:* ${visitId}\n📅 *Date:* ${visitDate}\n⏰ *Hours:* ${startTime} - ${endTime}\n\n📱 *Please show the QR code to the security during entry and exit* *View QR Code:*\n${qrLink}`;
                 window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(textMessage)}`, '_blank');
 
                 if (hostEmail && hostEmail !== 'N/A') {
@@ -545,7 +577,7 @@ let isProcessingScan = false; // Prevents double-scanning
             await sendHostEmailNotification(docId, host, hostEmail, visitorName, visitDate, startTime, endTime, "🚨 Overdue Visitor - Action Required", extendUrl);
             alert("Extension email sent to host automatically!");
         };
-        // BACKGROUND TIMER TO CHECK 15-MIN AND ON-TIME NOTIFICATIONS
+       // BACKGROUND TIMER TO CHECK 15-MIN, ON-TIME, AND OVERDUE NOTIFICATIONS
         async function checkScheduledHostEmails() {
             try {
                 const now = new Date();
@@ -554,26 +586,43 @@ let isProcessingScan = false; // Prevents double-scanning
                 const currentMinutes = now.getMinutes();
                 const currentTimeVal = currentHours * 60 + currentMinutes;
 
-                const q = query(collection(db, "visits"), where("status", "==", "Pending"), where("visitDate", "==", todayStr));
-                const querySnapshot = await getDocs(q);
+                // 1. CHECK FOR UPCOMING NOTIFICATIONS (Pending Status)
+                const qPending = query(collection(db, "visits"), where("status", "==", "Pending"), where("visitDate", "==", todayStr));
+                const pendingSnaps = await getDocs(qPending);
 
-                querySnapshot.forEach(async (docSnap) => {
+                pendingSnaps.forEach(async (docSnap) => {
                     const d = docSnap.data();
                     if (!d.hostEmail || d.hostEmail === 'N/A') return;
 
                     const [startH, startM] = d.startTime.split(':').map(Number);
                     const startTimeVal = startH * 60 + startM;
 
-                    // 15 Minutes Before Visit Notification
                     if (!d.email15MinSent && (startTimeVal - currentTimeVal === 15)) {
                         await sendHostEmailNotification(docSnap.id, d.hostName, d.hostEmail, d.visitorName, d.visitDate, d.startTime, d.endTime, "Upcoming Visit in 15 Minutes");
                         await updateDoc(doc(db, "visits", docSnap.id), { email15MinSent: true });
                     }
 
-                    // Exactly On Time Notification
                     if (!d.emailOnTimeSent && (currentTimeVal >= startTimeVal && currentTimeVal <= startTimeVal + 5)) {
                         await sendHostEmailNotification(docSnap.id, d.hostName, d.hostEmail, d.visitorName, d.visitDate, d.startTime, d.endTime, "Visit Starting Now");
                         await updateDoc(doc(db, "visits", docSnap.id), { emailOnTimeSent: true });
+                    }
+                });
+
+                // 2. CHECK FOR OVERDUE VISITS (Checked-In Status Past End Time)
+                const qOverdue = query(collection(db, "visits"), where("status", "==", "Checked-In"), where("visitDate", "==", todayStr));
+                const overdueSnaps = await getDocs(qOverdue);
+
+                overdueSnaps.forEach(async (docSnap) => {
+                    const d = docSnap.data();
+                    if (!d.hostEmail || d.hostEmail === 'N/A') return;
+
+                    const [endH, endM] = d.endTime.split(':').map(Number);
+                    const endTimeVal = endH * 60 + endM;
+
+                    if (!d.emailOverdueSent && (currentTimeVal > endTimeVal)) {
+                        const extendUrl = `${window.location.origin}${window.location.pathname}?action=extend1h&id=${docSnap.id}`;
+                        await sendHostEmailNotification(docSnap.id, d.hostName, d.hostEmail, d.visitorName, d.visitDate, d.startTime, d.endTime, "🚨 Overdue Visitor - Action Required", extendUrl);
+                        await updateDoc(doc(db, "visits", docSnap.id), { emailOverdueSent: true });
                     }
                 });
             } catch (e) {
@@ -625,7 +674,7 @@ let isProcessingScan = false; // Prevents double-scanning
         }
 
 // OVERDUE MONITORING (UPDATED WITH DIRECT EMAIL BUTTON)
-        window.checkOverdueVisitors = async function() {
+      window.checkOverdueVisitors = async function() {
             const overdueList = document.getElementById('overdue-list');
             overdueList.innerHTML = '<p class="text-xs text-gray-500">Checking for unexited visitors...</p>';
 
@@ -650,10 +699,15 @@ let isProcessingScan = false; // Prevents double-scanning
                                 <p class="font-bold text-gray-800">${d.visitorName} <span class="text-red-500">(In Campus)</span></p>
                                 <p class="text-gray-500">Scheduled End: ${d.endTime} ${d.extendedCount ? `(Extended ${d.extendedCount}x)` : ''}</p>
                             </div>
-                            ${d.hostEmail && d.hostEmail !== 'N/A' ? `
-                            <button onclick="sendOverdueEmail('${docId}', '${d.hostName}', '${d.hostEmail}', '${d.visitorName}', '${d.visitDate}', '${d.startTime}', '${d.endTime}')" class="w-full text-center bg-amber-600 text-white font-bold py-2 rounded hover:bg-amber-700 shadow">
-                                ✉️ Send 1-Hour Extension Email via System
-                            </button>` : ''}
+                            <div class="space-y-1.5 pt-1">
+                                ${d.hostEmail && d.hostEmail !== 'N/A' ? `
+                                <button onclick="sendOverdueEmail('${docId}', '${d.hostName}', '${d.hostEmail}', '${d.visitorName}', '${d.visitDate}', '${d.startTime}', '${d.endTime}')" class="w-full text-center bg-amber-600 text-white font-bold py-2 rounded hover:bg-amber-700 shadow">
+                                    ✉️ Send 1-Hour Extension Email via System
+                                </button>` : ''}
+                                <button onclick="forceAdminCheckOut('${docId}', '${d.visitorName}', '${d.hostName}', '${d.phone}', '${d.visitDate}', '${d.startTime}', '${d.endTime}')" class="w-full text-center bg-gray-700 text-white font-bold py-2 rounded hover:bg-gray-800 shadow">
+                                    🚪 Force Manual Check-Out
+                                </button>
+                            </div>
                         </div>`;
                 });
             } catch(e) { overdueList.innerHTML = `<p class="text-xs text-red-500">${e.message}</p>`; }
