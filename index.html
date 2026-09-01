@@ -577,7 +577,7 @@ let isProcessingScan = false;// Prevents double-scanning
             await sendHostEmailNotification(docId, host, hostEmail, visitorName, visitDate, startTime, endTime, "🚨 Overdue Visitor - Action Required", extendUrl);
             alert("Extension email sent to host automatically!");
         };
-       // BACKGROUND TIMER TO CHECK 15-MIN, ON-TIME, AND OVERDUE NOTIFICATIONS
+      // BACKGROUND TIMER TO CHECK 15-MIN, ON-TIME, AND OVERDUE NOTIFICATIONS
         async function checkScheduledHostEmails() {
             try {
                 const now = new Date();
@@ -596,14 +596,17 @@ let isProcessingScan = false;// Prevents double-scanning
 
                     const [startH, startM] = d.startTime.split(':').map(Number);
                     const startTimeVal = startH * 60 + startM;
+                    
+                    // Generate the readiness confirmation link for the host
+                    const ackUrl = `${window.location.origin}${window.location.pathname}?action=ack&id=${docSnap.id}`;
 
                     if (!d.email15MinSent && (startTimeVal - currentTimeVal === 15)) {
-                        await sendHostEmailNotification(docSnap.id, d.hostName, d.hostEmail, d.visitorName, d.visitDate, d.startTime, d.endTime, "Upcoming Visit in 15 Minutes");
+                        await sendHostEmailNotification(docSnap.id, d.hostName, d.hostEmail, d.visitorName, d.visitDate, d.startTime, d.endTime, "Upcoming Visit in 15 Minutes - Please Confirm Readiness", ackUrl);
                         await updateDoc(doc(db, "visits", docSnap.id), { email15MinSent: true });
                     }
 
                     if (!d.emailOnTimeSent && (currentTimeVal >= startTimeVal && currentTimeVal <= startTimeVal + 5)) {
-                        await sendHostEmailNotification(docSnap.id, d.hostName, d.hostEmail, d.visitorName, d.visitDate, d.startTime, d.endTime, "Visit Starting Now");
+                        await sendHostEmailNotification(docSnap.id, d.hostName, d.hostEmail, d.visitorName, d.visitDate, d.startTime, d.endTime, "Visit Starting Now - Please Confirm Readiness", ackUrl);
                         await updateDoc(doc(db, "visits", docSnap.id), { emailOnTimeSent: true });
                     }
                 });
@@ -629,7 +632,6 @@ let isProcessingScan = false;// Prevents double-scanning
                 console.error("Error checking scheduled emails:", e);
             }
         }
-
         // DELETE EXPIRED QR CODES
         window.deleteExpiredQRsOnly = async function() {
             if(!confirm("Invalidate/delete QR codes for expired passes?")) return;
@@ -805,8 +807,9 @@ window.syncToGoogleSheets = async function(visitData) {
                                 </div>`);
                         } else if (data.status === "Checked-In") {
                             await updateDoc(doc(db, "visits", d.id), { status: "Checked-Out", checkOutTime: serverTimestamp() });
+                                  showResultPage(`<div class="text-green-500 text-5xl mb-2">✅</div><h2 class="text-xl font-bold text-green-400">Visitor Checked out Successfully!</h2>`);
                             
-                            // ADD THIS TO SYNC CHECK-OUT TO GOOGLE SHEETS
+                            // UPDATED CHECK-OUT SYNC PAYLOAD
                             syncToGoogleSheets({
                                 visitorName: data.visitorName,
                                 hostName: data.hostName || "N/A",
@@ -814,10 +817,10 @@ window.syncToGoogleSheets = async function(visitData) {
                                 visitDate: data.visitDate,
                                 startTime: data.startTime,
                                 endTime: data.endTime,
-                                checkInTime: "Already Logged", 
                                 checkOutTime: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
                                 status: "Checked-Out"
                             });
+                                
                         } else if (data.status === "Checked-Out") {
                             showResultPage(`<div class="text-yellow-500 text-5xl mb-2">⚠️</div><h2 class="text-xl font-bold text-yellow-400 mb-2">ALREADY CHECKED OUT</h2>`);
                         }
