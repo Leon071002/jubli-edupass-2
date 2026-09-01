@@ -600,7 +600,9 @@ let isProcessingScan = false;// Prevents double-scanning
                     const startTimeVal = startH * 60 + startM;
                     
                     // Generate the readiness confirmation link for the host
+                    // Inside your background timer (for 15-min and on-time alerts):
                     const ackUrl = `${window.location.origin}${window.location.pathname}?action=ack&id=${docSnap.id}`;
+                    await sendHostEmailNotification(docSnap.id, d.hostName, d.hostEmail, d.visitorName, d.visitDate, d.startTime, d.endTime, "Upcoming Visit in 15 Minutes - Please Confirm Readiness", ackUrl);
 
                     if (!d.email15MinSent && (startTimeVal - currentTimeVal === 15)) {
                         await sendHostEmailNotification(docSnap.id, d.hostName, d.hostEmail, d.visitorName, d.visitDate, d.startTime, d.endTime, "Upcoming Visit in 15 Minutes - Please Confirm Readiness", ackUrl);
