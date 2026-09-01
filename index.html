@@ -324,11 +324,12 @@ let isProcessingScan = false;// Prevents double-scanning
             }
         };
 
-        // EMAILJS CONFIGURATION (Injected with your exact keys)
+       // EMAILJS CONFIGURATION (2 Templates)
         const EMAILJS_SERVICE_ID = "service_z2z2kip";
-        const EMAILJS_TEMPLATE_ID = "template_n3c1hmb";
+        const EMAILJS_TEMPLATE_ID = "template_n3c1hmb"; // 1. Used for Approvals (no link) AND 15-min/on-time (with readiness link)
+        const EMAILJS_OVERDUE_TEMPLATE_ID = "template_xir5ivc"; // 2. Used for Overdue notices (with extension link)
         const EMAILJS_PUBLIC_KEY = "E2WxVKJkkhBIuNT6H";
-
+        
         document.getElementById('v-date').valueAsDate = new Date();
         document.getElementById('adm-v-date').valueAsDate = new Date();
 
@@ -550,7 +551,14 @@ let isProcessingScan = false;// Prevents double-scanning
         };
 
         // EMAIL AUTOMATION FUNCTIONS VIA EMAILJS
+// EMAIL AUTOMATION FUNCTION (2-Template Router)
         async function sendHostEmailNotification(docId, host, hostEmail, visitorName, visitDate, startTime, endTime, notificationType, customLink = "") {
+            
+            // Choose the overdue template if it's an overdue alert; otherwise, use the main template for approvals and reminders
+            const activeTemplateId = notificationType.includes("Overdue") 
+                ? EMAILJS_OVERDUE_TEMPLATE_ID 
+                : EMAILJS_TEMPLATE_ID;
+
             const templateParams = {
                 to_email: hostEmail,
                 host_name: host,
@@ -559,11 +567,11 @@ let isProcessingScan = false;// Prevents double-scanning
                 start_time: startTime,
                 end_time: endTime,
                 notification_type: notificationType,
-                action_link: customLink // Used for the 1-hour extension
+                action_link: customLink // Will be blank for approvals, filled with a link for reminders/overdue
             };
 
             try {
-                await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams, EMAILJS_PUBLIC_KEY);
+                await emailjs.send(EMAILJS_SERVICE_ID, activeTemplateId, templateParams, EMAILJS_PUBLIC_KEY);
                 if (notificationType === "Pass Approved" || notificationType === "Pass Approved & Created") {
                     await updateDoc(doc(db, "visits", docId), { emailApprovalSent: true });
                 }
@@ -571,12 +579,6 @@ let isProcessingScan = false;// Prevents double-scanning
                 console.error("Email dispatch error:", err);
             }
         }
-
-        window.sendOverdueEmail = async function(docId, host, hostEmail, visitorName, visitDate, startTime, endTime) {
-            const extendUrl = `${window.location.origin}${window.location.pathname}?action=extend1h&id=${docId}`;
-            await sendHostEmailNotification(docId, host, hostEmail, visitorName, visitDate, startTime, endTime, "🚨 Overdue Visitor - Action Required", extendUrl);
-            alert("Extension email sent to host automatically!");
-        };
       // BACKGROUND TIMER TO CHECK 15-MIN, ON-TIME, AND OVERDUE NOTIFICATIONS
         async function checkScheduledHostEmails() {
             try {
@@ -779,10 +781,9 @@ window.syncToGoogleSheets = async function(visitData) {
 
                         if (data.status === "Awaiting Approval") {
                             showResultPage(`<div class="text-yellow-500 text-5xl mb-2">⏳</div><h2 class="text-xl font-bold text-yellow-400">NOT APPROVED</h2>`);
-                        } else if (data.status === "Pending") {
+                       } else if (data.status === "Pending") {
                             await updateDoc(doc(db, "visits", d.id), { status: "Checked-In", checkInTime: serverTimestamp() });
                             
-                            // ADD THIS TO SYNC CHECK-IN TO GOOGLE SHEETS
                             syncToGoogleSheets({
                                 visitorName: data.visitorName,
                                 hostName: data.hostName || "N/A",
@@ -802,14 +803,14 @@ window.syncToGoogleSheets = async function(visitData) {
                                     <p><span class="text-gray-400">Type:</span> <span class="text-blue-400 font-bold">${data.passType}</span></p>
                                     <p><span class="text-gray-400">Name:</span> <span class="text-white font-bold">${data.visitorName}</span></p>
                                     ${data.studentName !== 'N/A' ? `<p><span class="text-gray-400">Student:</span> <span class="text-yellow-300 font-bold">${data.studentName} (${data.studentClass})</span></p>` : `<p><span class="text-gray-400">Host:</span> <span class="text-white font-bold">${data.hostName}</span></p>`}
+                                    <p><span class="text-gray-400">Visit Date:</span> <span class="text-white font-bold">${data.visitDate}</span></p>
+                                    <p><span class="text-gray-400">Scheduled Time:</span> <span class="text-white font-bold">${data.startTime} - ${data.endTime}</span></p>
                                     <p><span class="text-gray-400">Host Readiness:</span> <span class="${data.hostAcknowledged ? 'text-green-400 font-bold' : 'text-amber-400 font-bold'}">${data.hostAcknowledged ? '🟢 ACKNOWLEDGED (Ready)' : '🟡 PENDING HOST CONFIRMATION'}</span></p>
                                     <p><span class="text-gray-400">Check-In Time:</span> <span class="text-green-400 font-bold">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></p>
                                 </div>`);
-                        } else if (data.status === "Checked-In") {
+                        }} else if (data.status === "Checked-In") {
                             await updateDoc(doc(db, "visits", d.id), { status: "Checked-Out", checkOutTime: serverTimestamp() });
-                                  showResultPage(`<div class="text-green-500 text-5xl mb-2">✅</div><h2 class="text-xl font-bold text-green-400">Visitor Checked out Successfully!</h2>`);
                             
-                            // UPDATED CHECK-OUT SYNC PAYLOAD
                             syncToGoogleSheets({
                                 visitorName: data.visitorName,
                                 hostName: data.hostName || "N/A",
@@ -820,7 +821,18 @@ window.syncToGoogleSheets = async function(visitData) {
                                 checkOutTime: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
                                 status: "Checked-Out"
                             });
-                                
+
+                            showResultPage(`
+                                <div class="text-blue-500 text-5xl mb-1">✅</div>
+                                <h2 class="text-xl font-bold text-blue-400 border-b border-gray-700 pb-2 mb-3">CHECK-OUT APPROVED</h2>
+                                <div class="bg-gray-900 p-4 rounded-xl text-left space-y-1.5 border border-gray-700 text-xs">
+                                    <p><span class="text-gray-400">Type:</span> <span class="text-blue-400 font-bold">${data.passType}</span></p>
+                                    <p><span class="text-gray-400">Name:</span> <span class="text-white font-bold">${data.visitorName}</span></p>
+                                    ${data.studentName !== 'N/A' ? `<p><span class="text-gray-400">Student:</span> <span class="text-yellow-300 font-bold">${data.studentName} (${data.studentClass})</span></p>` : `<p><span class="text-gray-400">Host:</span> <span class="text-white font-bold">${data.hostName}</span></p>`}
+                                    <p><span class="text-gray-400">Visit Date:</span> <span class="text-white font-bold">${data.visitDate}</span></p>
+                                    <p><span class="text-gray-400">Scheduled Time:</span> <span class="text-white font-bold">${data.startTime} - ${data.endTime}</span></p>
+                                    <p><span class="text-gray-400">Check-Out Time:</span> <span class="text-blue-400 font-bold">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></p>
+                                </div>`);
                         } else if (data.status === "Checked-Out") {
                             showResultPage(`<div class="text-yellow-500 text-5xl mb-2">⚠️</div><h2 class="text-xl font-bold text-yellow-400 mb-2">ALREADY CHECKED OUT</h2>`);
                         }
