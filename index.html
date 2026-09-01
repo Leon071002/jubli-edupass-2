@@ -208,6 +208,9 @@
                         <input type="time" id="adm-v-start" value="08:00" class="p-2 border rounded text-[10px]">
                         <input type="time" id="adm-v-end" value="17:00" class="p-2 border rounded text-[10px]">
                     </div>
+                    <button onclick="window.open('https://docs.google.com/spreadsheets/d/1gYo_njWUS5atV71LyZXNll26D41iwQgsok-2OtMvR2Y/edit?usp=sharing', '_blank')" class="w-full bg-emerald-600 text-white font-bold py-2.5 rounded-xl hover:bg-emerald-700 shadow text-xs">
+    📊 Open Live Google Sheet
+</button>
                     <button onclick="adminDirectCreatePass()" class="w-full bg-purple-600 text-white font-bold py-2 rounded hover:bg-purple-700">
                         Create & Send Pass Immediately
                     </button>
@@ -215,9 +218,6 @@
             </div>
 
             <div class="grid grid-cols-2 gap-2">
-                <button onclick="exportVisitsToCSV()" class="w-full bg-emerald-600 text-white font-bold py-2.5 rounded-xl hover:bg-emerald-700 shadow text-xs">
-                    📊 Export Google Sheets CSV
-                </button>
                 <button onclick="deleteExpiredQRsOnly()" class="w-full bg-red-600 text-white font-bold py-2.5 rounded-xl hover:bg-red-700 shadow text-xs">
                     🗑️ Clean Up Expired QRs
                 </button>
@@ -290,7 +290,8 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
-        let html5QrcodeScanner = null;
+       let html5QrcodeScanner = null;
+let isProcessingScan = false; // Prevents double-scanning
 
         // EMAILJS CONFIGURATION (Injected with your exact keys)
         const EMAILJS_SERVICE_ID = "service_z2z2kip";
@@ -517,9 +518,7 @@
         };
 
         // EMAIL AUTOMATION FUNCTIONS VIA EMAILJS
-        async function sendHostEmailNotification(docId, host, hostEmail, visitorName, visitDate, startTime, endTime, notificationType) {
-            const ackUrl = `${window.location.origin}${window.location.pathname}?action=ack&id=${docId}`;
-            
+        async function sendHostEmailNotification(docId, host, hostEmail, visitorName, visitDate, startTime, endTime, notificationType, customLink = "") {
             const templateParams = {
                 to_email: hostEmail,
                 host_name: host,
@@ -528,7 +527,7 @@
                 start_time: startTime,
                 end_time: endTime,
                 notification_type: notificationType,
-                acknowledgment_link: ackUrl
+                action_link: customLink // Used for the 1-hour extension
             };
 
             try {
@@ -541,6 +540,11 @@
             }
         }
 
+        window.sendOverdueEmail = async function(docId, host, hostEmail, visitorName, visitDate, startTime, endTime) {
+            const extendUrl = `${window.location.origin}${window.location.pathname}?action=extend1h&id=${docId}`;
+            await sendHostEmailNotification(docId, host, hostEmail, visitorName, visitDate, startTime, endTime, "🚨 Overdue Visitor - Action Required", extendUrl);
+            alert("Extension email sent to host automatically!");
+        };
         // BACKGROUND TIMER TO CHECK 15-MIN AND ON-TIME NOTIFICATIONS
         async function checkScheduledHostEmails() {
             try {
@@ -620,7 +624,7 @@
             });
         }
 
-        // OVERDUE & HOST 1-HOUR EXTENSION MONITORING
+// OVERDUE MONITORING (UPDATED WITH DIRECT EMAIL BUTTON)
         window.checkOverdueVisitors = async function() {
             const overdueList = document.getElementById('overdue-list');
             overdueList.innerHTML = '<p class="text-xs text-gray-500">Checking for unexited visitors...</p>';
@@ -638,11 +642,6 @@
                 querySnapshot.forEach((docSnap) => {
                     const d = docSnap.data();
                     const docId = docSnap.id;
-                    const extendUrl = `${window.location.origin}${window.location.pathname}?action=extend1h&id=${docId}`;
-
-                    const subject = encodeURIComponent(`Overdue Visitor Alert: ${d.visitorName}`);
-                    const body = encodeURIComponent(`Hello ${d.hostName},\n\nYour visitor ${d.visitorName} has passed their scheduled end time (${d.endTime}) and is still on campus.\n\nNeed to extend their pass by 1 hour? Click here: ${extendUrl}`);
-                    const mailtoUrl = `mailto:${d.hostEmail}?subject=${subject}&body=${body}`;
 
                     overdueList.innerHTML += `
                         <div class="bg-white p-3 rounded-lg border border-amber-300 shadow-sm text-xs space-y-2">
@@ -650,36 +649,32 @@
                                 <span class="font-bold text-amber-800">${d.passType}</span>
                                 <p class="font-bold text-gray-800">${d.visitorName} <span class="text-red-500">(In Campus)</span></p>
                                 <p class="text-gray-500">Scheduled End: ${d.endTime} ${d.extendedCount ? `(Extended ${d.extendedCount}x)` : ''}</p>
-                                <p class="text-xs ${d.hostAcknowledged ? 'text-green-600' : 'text-gray-400'} font-bold">🟢 Host Acknowledged: ${d.hostAcknowledged ? 'YES' : 'NO'}</p>
                             </div>
                             ${d.hostEmail && d.hostEmail !== 'N/A' ? `
-                            <a href="${mailtoUrl}" class="block text-center bg-amber-600 text-white font-bold py-1.5 rounded hover:bg-amber-700">
-                                ✉️ Email Host 1-Hour Extension Prompt
-                            </a>` : ''}
+                            <button onclick="sendOverdueEmail('${docId}', '${d.hostName}', '${d.hostEmail}', '${d.visitorName}', '${d.visitDate}', '${d.startTime}', '${d.endTime}')" class="w-full text-center bg-amber-600 text-white font-bold py-2 rounded hover:bg-amber-700 shadow">
+                                ✉️ Send 1-Hour Extension Email via System
+                            </button>` : ''}
                         </div>`;
                 });
             } catch(e) { overdueList.innerHTML = `<p class="text-xs text-red-500">${e.message}</p>`; }
         };
 
-        // EXPORT FULL ENTRY PROOF TO CSV
-        window.exportVisitsToCSV = async function() {
-            try {
-                const querySnapshot = await getDocs(collection(db, "visits"));
-                let csv = "data:text/csv;charset=utf-8,Pass Type,Visitor/Parent Name,Phone,Student Name,Student Class,Host Name,Host Email,Visit Date,Start Time,End Time,Check-In Time,Check-Out Time,Status,Host Acknowledged\n";
+    // AUTOMATED GOOGLE SHEETS SYNC URL
+const GOOGLE_SHEET_WEB_APP_URL = "https://docs.google.com/spreadsheets/d/1gYo_njWUS5atV71LyZXNll26D41iwQgsok-2OtMvR2Y/edit?usp=sharing";
 
-                querySnapshot.forEach((docSnap) => {
-                    const d = docSnap.data();
-                    const formatTs = (ts) => ts && ts.toDate ? new Date(ts.toDate()).toLocaleString().replace(/,/g, '') : "N/A";
-                    csv += `"${d.passType}","${d.visitorName}","${d.phone}","${d.studentName}","${d.studentClass}","${d.hostName}","${d.hostEmail}","${d.visitDate}","${d.startTime}","${d.endTime}","${formatTs(d.checkInTime)}","${formatTs(d.checkOutTime)}","${d.status}","${d.hostAcknowledged ? 'YES' : 'NO'}"\n`;
-                });
-
-                const link = document.createElement("a");
-                link.setAttribute("href", encodeURI(csv));
-                link.setAttribute("download", `school_visitor_entry_proof_${new Date().toISOString().split('T')[0]}.csv`);
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            } catch(e) { alert("Export failed: " + e.message); }
+window.syncToGoogleSheets = async function(visitData) {
+    if (!GOOGLE_SHEET_WEB_APP_URL.includes("http")) return;
+    try {
+        await fetch(GOOGLE_SHEET_WEB_APP_URL, {
+            method: "POST",
+            mode: "no-cors",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(visitData)
+        });
+    } catch (e) {
+        console.error("Google Sheets sync error:", e);
+    }
+};
         };
 
         function showResultPage(htmlContent) {
@@ -689,7 +684,8 @@
             document.getElementById('result-content').innerHTML = htmlContent;
         }
 
-        window.backToScanner = function() {
+      window.backToScanner = function() {
+            isProcessingScan = false; // Reset flag when returning to scanner
             document.getElementById('result-screen').classList.replace('flex', 'hidden');
             document.getElementById('security-screen').classList.replace('hidden', 'flex');
             document.getElementById('scan-status').innerHTML = "Ready to scan QR Code...";
@@ -700,7 +696,13 @@
         window.startScanner = function() {
             if (!html5QrcodeScanner) html5QrcodeScanner = new Html5Qrcode("reader");
             html5QrcodeScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 220, height: 220 } }, async (decodedText) => {
+                
+                if (isProcessingScan) return; // Block multiple rapid scans
+                isProcessingScan = true;      // Lock scanner while processing
+
                 document.getElementById('scan-status').innerHTML = `<span class="text-blue-400 font-bold">Verifying Pass...</span>`;
+                
+                // ... (Keep your existing query and verify logic exactly as it is below this line)
 
                 const q = query(collection(db, "visits"), where("visitId", "==", decodedText.trim()));
                 const snaps = await getDocs(q);
@@ -724,6 +726,19 @@
                             showResultPage(`<div class="text-yellow-500 text-5xl mb-2">⏳</div><h2 class="text-xl font-bold text-yellow-400">NOT APPROVED</h2>`);
                         } else if (data.status === "Pending") {
                             await updateDoc(doc(db, "visits", d.id), { status: "Checked-In", checkInTime: serverTimestamp() });
+                            
+                            // ADD THIS TO SYNC CHECK-IN TO GOOGLE SHEETS
+                            syncToGoogleSheets({
+                                visitorName: data.visitorName,
+                                hostName: data.hostName || "N/A",
+                                phone: data.phone,
+                                visitDate: data.visitDate,
+                                startTime: data.startTime,
+                                endTime: data.endTime,
+                                checkInTime: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                                checkOutTime: "N/A",
+                                status: "Checked-In"
+                            });
 
                             showResultPage(`
                                 <div class="text-green-500 text-5xl mb-1">✅</div>
@@ -735,9 +750,21 @@
                                     <p><span class="text-gray-400">Host Readiness:</span> <span class="${data.hostAcknowledged ? 'text-green-400 font-bold' : 'text-amber-400 font-bold'}">${data.hostAcknowledged ? '🟢 ACKNOWLEDGED (Ready)' : '🟡 PENDING HOST CONFIRMATION'}</span></p>
                                     <p><span class="text-gray-400">Check-In Time:</span> <span class="text-green-400 font-bold">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></p>
                                 </div>`);
-                        } else if (data.status === "Checked-In") {
+                        } } else if (data.status === "Checked-In") {
                             await updateDoc(doc(db, "visits", d.id), { status: "Checked-Out", checkOutTime: serverTimestamp() });
-                            showResultPage(`<div class="text-blue-500 text-5xl mb-2">👋</div><h2 class="text-xl font-bold text-blue-400 mb-2">EXIT CHECK-OUT SUCCESSFUL</h2>`);
+                            
+                            // ADD THIS TO SYNC CHECK-OUT TO GOOGLE SHEETS
+                            syncToGoogleSheets({
+                                visitorName: data.visitorName,
+                                hostName: data.hostName || "N/A",
+                                phone: data.phone,
+                                visitDate: data.visitDate,
+                                startTime: data.startTime,
+                                endTime: data.endTime,
+                                checkInTime: "Already Logged", 
+                                checkOutTime: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                                status: "Checked-Out"
+                            });
                         } else if (data.status === "Checked-Out") {
                             showResultPage(`<div class="text-yellow-500 text-5xl mb-2">⚠️</div><h2 class="text-xl font-bold text-yellow-400 mb-2">ALREADY CHECKED OUT</h2>`);
                         }
