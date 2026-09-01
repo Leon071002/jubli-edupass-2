@@ -580,7 +580,7 @@ let isProcessingScan = false;// Prevents double-scanning
             }
         }
       // BACKGROUND TIMER TO CHECK 15-MIN, ON-TIME, AND OVERDUE NOTIFICATIONS
-        async function checkScheduledHostEmails() {
+       async function checkScheduledHostEmails() {
             try {
                 const now = new Date();
                 const todayStr = now.toISOString().split('T')[0];
@@ -599,10 +599,7 @@ let isProcessingScan = false;// Prevents double-scanning
                     const [startH, startM] = d.startTime.split(':').map(Number);
                     const startTimeVal = startH * 60 + startM;
                     
-                    // Generate the readiness confirmation link for the host
-                    // Inside your background timer (for 15-min and on-time alerts):
                     const ackUrl = `${window.location.origin}${window.location.pathname}?action=ack&id=${docSnap.id}`;
-                    await sendHostEmailNotification(docSnap.id, d.hostName, d.hostEmail, d.visitorName, d.visitDate, d.startTime, d.endTime, "Upcoming Visit in 15 Minutes - Please Confirm Readiness", ackUrl);
 
                     if (!d.email15MinSent && (startTimeVal - currentTimeVal === 15)) {
                         await sendHostEmailNotification(docSnap.id, d.hostName, d.hostEmail, d.visitorName, d.visitDate, d.startTime, d.endTime, "Upcoming Visit in 15 Minutes - Please Confirm Readiness", ackUrl);
@@ -679,8 +676,8 @@ let isProcessingScan = false;// Prevents double-scanning
             });
         }
 
-// OVERDUE MONITORING (UPDATED WITH DIRECT EMAIL BUTTON)
-      window.checkOverdueVisitors = async function() {
+// OVERDUE MONITORING
+        window.checkOverdueVisitors = async function() {
             const overdueList = document.getElementById('overdue-list');
             overdueList.innerHTML = '<p class="text-xs text-gray-500">Checking for unexited visitors...</p>';
 
@@ -697,6 +694,7 @@ let isProcessingScan = false;// Prevents double-scanning
                 querySnapshot.forEach((docSnap) => {
                     const d = docSnap.data();
                     const docId = docSnap.id;
+                    const extendUrl = `${window.location.origin}${window.location.pathname}?action=extend1h&id=${docId}`;
 
                     overdueList.innerHTML += `
                         <div class="bg-white p-3 rounded-lg border border-amber-300 shadow-sm text-xs space-y-2">
@@ -707,7 +705,7 @@ let isProcessingScan = false;// Prevents double-scanning
                             </div>
                             <div class="space-y-1.5 pt-1">
                                 ${d.hostEmail && d.hostEmail !== 'N/A' ? `
-                                <button onclick="sendOverdueEmail('${docId}', '${d.hostName}', '${d.hostEmail}', '${d.visitorName}', '${d.visitDate}', '${d.startTime}', '${d.endTime}')" class="w-full text-center bg-amber-600 text-white font-bold py-2 rounded hover:bg-amber-700 shadow">
+                                <button onclick="sendHostEmailNotification('${docId}', '${d.hostName}', '${d.hostEmail}', '${d.visitorName}', '${d.visitDate}', '${d.startTime}', '${d.endTime}', '🚨 Overdue Visitor - Action Required', '${extendUrl}')" class="w-full text-center bg-amber-600 text-white font-bold py-2 rounded hover:bg-amber-700 shadow">
                                     ✉️ Send 1-Hour Extension Email via System
                                 </button>` : ''}
                                 <button onclick="forceAdminCheckOut('${docId}', '${d.visitorName}', '${d.hostName}', '${d.phone}', '${d.visitDate}', '${d.startTime}', '${d.endTime}')" class="w-full text-center bg-gray-700 text-white font-bold py-2 rounded hover:bg-gray-800 shadow">
