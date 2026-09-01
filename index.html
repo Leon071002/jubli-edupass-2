@@ -660,7 +660,7 @@ let isProcessingScan = false; // Prevents double-scanning
         };
 
     // AUTOMATED GOOGLE SHEETS SYNC URL
-const GOOGLE_SHEET_WEB_APP_URL = "https://docs.google.com/spreadsheets/d/1gYo_njWUS5atV71LyZXNll26D41iwQgsok-2OtMvR2Y/edit?usp=sharing";
+const GOOGLE_SHEET_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzVkFhOx4IJjD988CUPpu6r8ZdNFKZJ4OEMz01tg01c1F1e4EPr41mploU-_haz2NMQ/exec";
 
 window.syncToGoogleSheets = async function(visitData) {
     if (!GOOGLE_SHEET_WEB_APP_URL.includes("http")) return;
@@ -675,7 +675,6 @@ window.syncToGoogleSheets = async function(visitData) {
         console.error("Google Sheets sync error:", e);
     }
 };
-        };
 
         function showResultPage(htmlContent) {
             window.stopScanner();
@@ -750,7 +749,7 @@ window.syncToGoogleSheets = async function(visitData) {
                                     <p><span class="text-gray-400">Host Readiness:</span> <span class="${data.hostAcknowledged ? 'text-green-400 font-bold' : 'text-amber-400 font-bold'}">${data.hostAcknowledged ? '🟢 ACKNOWLEDGED (Ready)' : '🟡 PENDING HOST CONFIRMATION'}</span></p>
                                     <p><span class="text-gray-400">Check-In Time:</span> <span class="text-green-400 font-bold">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></p>
                                 </div>`);
-                        } } else if (data.status === "Checked-In") {
+                        } else if (data.status === "Checked-In") {
                             await updateDoc(doc(db, "visits", d.id), { status: "Checked-Out", checkOutTime: serverTimestamp() });
                             
                             // ADD THIS TO SYNC CHECK-OUT TO GOOGLE SHEETS
