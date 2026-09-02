@@ -489,7 +489,27 @@ let isProcessingScan = false;// Prevents double-scanning
                 }
 
                 document.getElementById('request-success').classList.remove('hidden');
-                setTimeout(() => document.getElementById('request-success').classList.add('hidden'), 3000);
+                
+                // UPDATED: Wait 3 seconds, hide the success message, and return to the main screen
+                setTimeout(() => {
+                    document.getElementById('request-success').classList.add('hidden');
+                    
+                    // Clear out the input fields for the next person
+                    document.getElementById('p-name').value = '';
+                    document.getElementById('v-name').value = '';
+                    document.getElementById('p-student-name').value = '';
+                    document.getElementById('v-host').value = '';
+                    document.getElementById('v-host-email').value = '';
+                    document.getElementById('v-phone').value = '';
+                    
+                    // Hide staff screen and show the main login screen
+                    document.getElementById('staff-screen').classList.remove('flex');
+                    document.getElementById('staff-screen').classList.add('hidden');
+                    
+                    document.getElementById('login-screen').classList.remove('hidden');
+                    document.getElementById('login-screen').classList.add('flex');
+                }, 3000);
+
             } catch (e) { alert("Error generating pass: " + e.message); }
         };
 
