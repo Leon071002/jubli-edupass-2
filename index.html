@@ -14,6 +14,14 @@
 
     <!-- HOST ACTION NOTIFICATION MODAL / SCREEN -->
     <div id="action-screen" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+        <!-- SUCCESS POPUP MODAL -->
+    <div id="success-popup" class="hidden fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl p-8 max-w-sm w-full text-center space-y-3 shadow-2xl scale-105 transition-transform">
+            <div class="text-7xl animate-bounce">✅</div>
+            <h2 class="text-2xl font-bold text-gray-800">Pass Submitted!</h2>
+            <p class="text-sm text-gray-600">Redirecting to main menu...</p>
+        </div>
+    </div>
         <div class="bg-white rounded-2xl p-6 max-w-sm w-full text-center space-y-4 shadow-2xl">
             <div id="action-icon" class="text-5xl">⚡</div>
             <h2 id="action-title" class="text-xl font-bold text-gray-800">Processing Action...</h2>
@@ -490,9 +498,18 @@ let isProcessingScan = false;// Prevents double-scanning
 
                 document.getElementById('request-success').classList.remove('hidden');
                 
-                // UPDATED: Wait 3 seconds, hide the success message, and return to the main screen
+             // ... (Keep your Firebase addDoc and WhatsApp logic above this)
+
+                // 1. Show the pop-up modal
+                const successModal = document.getElementById('success-popup');
+                successModal.classList.remove('hidden');
+                successModal.classList.add('flex');
+                
+                // 2. Wait 2.5 seconds, then reset and redirect
                 setTimeout(() => {
-                    document.getElementById('request-success').classList.add('hidden');
+                    // Hide the modal
+                    successModal.classList.add('hidden');
+                    successModal.classList.remove('flex');
                     
                     // Clear out the input fields for the next person
                     document.getElementById('p-name').value = '';
@@ -508,7 +525,7 @@ let isProcessingScan = false;// Prevents double-scanning
                     
                     document.getElementById('login-screen').classList.remove('hidden');
                     document.getElementById('login-screen').classList.add('flex');
-                }, 3000);
+                }, 2500);
 
             } catch (e) { alert("Error generating pass: " + e.message); }
         };
@@ -629,24 +646,6 @@ let isProcessingScan = false;// Prevents double-scanning
                     if (!d.emailOnTimeSent && (currentTimeVal >= startTimeVal && currentTimeVal <= startTimeVal + 5)) {
                         await sendHostEmailNotification(docSnap.id, d.hostName, d.hostEmail, d.visitorName, d.visitDate, d.startTime, d.endTime, "Visit Starting Now - Please Confirm Readiness", ackUrl);
                         await updateDoc(doc(db, "visits", docSnap.id), { emailOnTimeSent: true });
-                    }
-                });
-
-                // 2. CHECK FOR OVERDUE VISITS (Checked-In Status Past End Time)
-                const qOverdue = query(collection(db, "visits"), where("status", "==", "Checked-In"), where("visitDate", "==", todayStr));
-                const overdueSnaps = await getDocs(qOverdue);
-
-                overdueSnaps.forEach(async (docSnap) => {
-                    const d = docSnap.data();
-                    if (!d.hostEmail || d.hostEmail === 'N/A') return;
-
-                    const [endH, endM] = d.endTime.split(':').map(Number);
-                    const endTimeVal = endH * 60 + endM;
-
-                    if (!d.emailOverdueSent && (currentTimeVal > endTimeVal)) {
-                        const extendUrl = `${window.location.origin}${window.location.pathname}?action=extend1h&id=${docSnap.id}`;
-                        await sendHostEmailNotification(docSnap.id, d.hostName, d.hostEmail, d.visitorName, d.visitDate, d.startTime, d.endTime, "🚨 Overdue Visitor - Action Required", extendUrl);
-                        await updateDoc(doc(db, "visits", docSnap.id), { emailOverdueSent: true });
                     }
                 });
             } catch (e) {
