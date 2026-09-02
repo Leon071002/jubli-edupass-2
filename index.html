@@ -551,13 +551,12 @@ let isProcessingScan = false;// Prevents double-scanning
 
         // EMAIL AUTOMATION FUNCTIONS VIA EMAILJS
 // EMAIL AUTOMATION FUNCTION (2-Template Router)
-        async function sendHostEmailNotification(docId, host, hostEmail, visitorName, visitDate, startTime, endTime, notificationType, customLink = "") {
-            
-            // Choose the overdue template if it's an overdue alert; otherwise, use the main template for approvals and reminders
+       async function sendHostEmailNotification(docId, host, hostEmail, visitorName, visitDate, startTime, endTime, notificationType, customLink = "") {
             const activeTemplateId = notificationType.includes("Overdue") 
                 ? EMAILJS_OVERDUE_TEMPLATE_ID 
                 : EMAILJS_TEMPLATE_ID;
 
+            // If there's no link (like for approvals), pass an empty string or hide the HTML block
             const templateParams = {
                 to_email: hostEmail,
                 host_name: host,
@@ -566,7 +565,9 @@ let isProcessingScan = false;// Prevents double-scanning
                 start_time: startTime,
                 end_time: endTime,
                 notification_type: notificationType,
-                action_link: customLink // Will be blank for approvals, filled with a link for reminders/overdue
+                action_link: customLink,
+                // Add this so your template can conditionally show/hide the button if needed
+                has_link: customLink ? "true" : "" 
             };
 
             try {
@@ -598,7 +599,7 @@ let isProcessingScan = false;// Prevents double-scanning
                     const [startH, startM] = d.startTime.split(':').map(Number);
                     const startTimeVal = startH * 60 + startM;
                     
-                  const ackUrl = `https://jubli-edupass.web.app?action=ack&id=${docSnap.id}`;
+                  const ackUrl = `${window.location.origin}${window.location.pathname}?action=ack&id=${docSnap.id}`;
 
                     if (!d.email15MinSent && (startTimeVal - currentTimeVal === 15)) {
                         await sendHostEmailNotification(docSnap.id, d.hostName, d.hostEmail, d.visitorName, d.visitDate, d.startTime, d.endTime, "Upcoming Visit in 15 Minutes - Please Confirm Readiness", ackUrl);
@@ -623,7 +624,7 @@ let isProcessingScan = false;// Prevents double-scanning
                     const endTimeVal = endH * 60 + endM;
 
                     if (!d.emailOverdueSent && (currentTimeVal > endTimeVal)) {
-                        const extendUrl = `https://jubli-edupass.web.app?action=extend1h&id=${docSnap.id}`;
+                        const extendUrl = `${window.location.origin}${window.location.pathname}?action=extend1h&id=${docSnap.id}`;
                         await sendHostEmailNotification(docSnap.id, d.hostName, d.hostEmail, d.visitorName, d.visitDate, d.startTime, d.endTime, "🚨 Overdue Visitor - Action Required", extendUrl);
                         await updateDoc(doc(db, "visits", docSnap.id), { emailOverdueSent: true });
                     }
@@ -693,8 +694,7 @@ let isProcessingScan = false;// Prevents double-scanning
                 querySnapshot.forEach((docSnap) => {
                     const d = docSnap.data();
                     const docId = docSnap.id;
-                    const extendUrl = `https://jubli-edupass.web.app?action=extend1h&id=${docSnap.id}`;
-
+                    const extendUrl = `${window.location.origin}${window.location.pathname}?action=extend1h&id=${docSnap.id}`;
                     overdueList.innerHTML += `
                         <div class="bg-white p-3 rounded-lg border border-amber-300 shadow-sm text-xs space-y-2">
                             <div>
