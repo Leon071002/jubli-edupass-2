@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>School Visitor & Parent Pass System</title>
+    <title>Jubli Edupass</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
@@ -25,7 +25,7 @@
     <!-- LOGIN SCREEN -->
     <div id="login-screen" class="flex flex-col items-center justify-center min-h-screen p-4">
         <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-sm border border-gray-200">
-            <h1 class="text-2xl font-bold text-center mb-1 text-blue-600">School Pass System</h1>
+            <h1 class="text-2xl font-bold text-center mb-1 text-blue-600">Jubli Edupass</h1>
             <p class="text-xs text-gray-500 text-center mb-6">Security & Admin Portal</p>
             <div class="space-y-4">
                 <input type="email" id="login-email" placeholder="Email Address" class="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
@@ -293,7 +293,7 @@
        let html5QrcodeScanner = null;
 let isProcessingScan = false;// Prevents double-scanning
 
-        window.forceAdminCheckOut = async function(docId, visitorName, hostName, phone, visitDate, startTime, endTime) {
+       window.forceAdminCheckOut = async function(docId, visitorName, hostName, phone, visitDate, startTime, endTime) {
             if(!confirm(`Are you sure you want to manually check out ${visitorName}?`)) return;
             
             try {
@@ -311,8 +311,8 @@ let isProcessingScan = false;// Prevents double-scanning
                     visitDate: visitDate,
                     startTime: startTime,
                     endTime: endTime,
-                    checkInTime: "Admin Manual Action", 
-                    checkOutTime: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                    // Remove the hardcoded Admin Action from checkInTime so it doesn't overwrite it
+                    checkOutTime: "Admin Check-Out at " + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
                     status: "Checked-Out"
                 });
 
@@ -323,7 +323,6 @@ let isProcessingScan = false;// Prevents double-scanning
                 alert("Error checking out visitor: " + e.message);
             }
         };
-
        // EMAILJS CONFIGURATION (2 Templates)
         const EMAILJS_SERVICE_ID = "service_z2z2kip";
         const EMAILJS_TEMPLATE_ID = "template_n3c1hmb"; // 1. Used for Approvals (no link) AND 15-min/on-time (with readiness link)
@@ -599,7 +598,7 @@ let isProcessingScan = false;// Prevents double-scanning
                     const [startH, startM] = d.startTime.split(':').map(Number);
                     const startTimeVal = startH * 60 + startM;
                     
-                    const ackUrl = `${window.location.origin}${window.location.pathname}?action=ack&id=${docSnap.id}`;
+                  const ackUrl = `https://jubli-edupass.web.app?action=ack&id=${docSnap.id}`;
 
                     if (!d.email15MinSent && (startTimeVal - currentTimeVal === 15)) {
                         await sendHostEmailNotification(docSnap.id, d.hostName, d.hostEmail, d.visitorName, d.visitDate, d.startTime, d.endTime, "Upcoming Visit in 15 Minutes - Please Confirm Readiness", ackUrl);
@@ -624,7 +623,7 @@ let isProcessingScan = false;// Prevents double-scanning
                     const endTimeVal = endH * 60 + endM;
 
                     if (!d.emailOverdueSent && (currentTimeVal > endTimeVal)) {
-                        const extendUrl = `${window.location.origin}${window.location.pathname}?action=extend1h&id=${docSnap.id}`;
+                        const extendUrl = `https://jubli-edupass.web.app?action=extend1h&id=${docSnap.id}`;
                         await sendHostEmailNotification(docSnap.id, d.hostName, d.hostEmail, d.visitorName, d.visitDate, d.startTime, d.endTime, "🚨 Overdue Visitor - Action Required", extendUrl);
                         await updateDoc(doc(db, "visits", docSnap.id), { emailOverdueSent: true });
                     }
@@ -694,7 +693,7 @@ let isProcessingScan = false;// Prevents double-scanning
                 querySnapshot.forEach((docSnap) => {
                     const d = docSnap.data();
                     const docId = docSnap.id;
-                    const extendUrl = `${window.location.origin}${window.location.pathname}?action=extend1h&id=${docId}`;
+                    const extendUrl = `https://jubli-edupass.web.app?action=extend1h&id=${docSnap.id}`;
 
                     overdueList.innerHTML += `
                         <div class="bg-white p-3 rounded-lg border border-amber-300 shadow-sm text-xs space-y-2">
@@ -784,9 +783,11 @@ window.syncToGoogleSheets = async function(visitData) {
                        } else if (data.status === "Pending") {
                             await updateDoc(doc(db, "visits", d.id), { status: "Checked-In", checkInTime: serverTimestamp() });
                             
-                            syncToGoogleSheets({
+                          syncToGoogleSheets({
+                                docId: d.id, // NEW: Needed for the extension link
                                 visitorName: data.visitorName,
                                 hostName: data.hostName || "N/A",
+                                hostEmail: data.hostEmail || "N/A", // NEW: Needed to send the email
                                 phone: data.phone,
                                 visitDate: data.visitDate,
                                 startTime: data.startTime,
@@ -811,15 +812,18 @@ window.syncToGoogleSheets = async function(visitData) {
                         } else if (data.status === "Checked-In") {
                             await updateDoc(doc(db, "visits", d.id), { status: "Checked-Out", checkOutTime: serverTimestamp() });
                             
-                            syncToGoogleSheets({
+                           syncToGoogleSheets({
+                                docId: d.id, // NEW: Needed for the extension link
                                 visitorName: data.visitorName,
                                 hostName: data.hostName || "N/A",
+                                hostEmail: data.hostEmail || "N/A", // NEW: Needed to send the email
                                 phone: data.phone,
                                 visitDate: data.visitDate,
                                 startTime: data.startTime,
                                 endTime: data.endTime,
-                                checkOutTime: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-                                status: "Checked-Out"
+                                checkInTime: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                                checkOutTime: "N/A",
+                                status: "Checked-In"
                             });
 
                             showResultPage(`
