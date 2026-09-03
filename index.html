@@ -301,36 +301,33 @@
        let html5QrcodeScanner = null;
 let isProcessingScan = false;// Prevents double-scanning
 
-       window.forceAdminCheckOut = async function(docId, visitorName, hostName, phone, visitDate, startTime, endTime) {
-            if(!confirm(`Are you sure you want to manually check out ${visitorName}?`)) return;
-            
-            try {
-                // Update Firebase Status
-                await updateDoc(doc(db, "visits", docId), { 
-                    status: "Checked-Out", 
-                    checkOutTime: serverTimestamp() 
-                });
+  window.forceAdminCheckOut = async function(docId, visitorName, hostName, phone, visitDate, startTime, endTime) {
+    if(!confirm(`Are you sure you want to manually check out ${visitorName}?`)) return;
+    
+    try {
+        await updateDoc(doc(db, "visits", docId), { 
+            status: "Checked-Out", 
+            checkOutTime: serverTimestamp() 
+        });
 
-                // Sync the manual check-out to Google Sheets
-                syncToGoogleSheets({
-                    visitorName: visitorName,
-                    hostName: hostName || "N/A",
-                    phone: phone,
-                    visitDate: visitDate,
-                    startTime: startTime,
-                    endTime: endTime,
-                    // Remove the hardcoded Admin Action from checkInTime so it doesn't overwrite it
-                    checkOutTime: "Admin Check-Out at " + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-                    status: "Checked-Out"
-                });
+        syncToGoogleSheets({
+            docId: docId,   // <-- ADD THIS LINE
+            visitorName: visitorName,
+            hostName: hostName || "N/A",
+            phone: phone,
+            visitDate: visitDate,
+            startTime: startTime,
+            endTime: endTime,
+            checkOutTime: "Admin Check-Out at " + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+            status: "Checked-Out"
+        });
 
-                // Refresh the list immediately
-                checkOverdueVisitors();
-                alert(`✅ ${visitorName} has been checked out and removed from the overdue list.`);
-            } catch(e) {
-                alert("Error checking out visitor: " + e.message);
-            }
-        };
+        checkOverdueVisitors();
+        alert(`✅ ${visitorName} has been checked out and removed from the overdue list.`);
+    } catch(e) {
+        alert("Error checking out visitor: " + e.message);
+    }
+};
        // EMAILJS CONFIGURATION (2 Templates)
         const EMAILJS_SERVICE_ID = "service_z2z2kip";
         const EMAILJS_TEMPLATE_ID = "template_n3c1hmb"; // 1. Used for Approvals (no link) AND 15-min/on-time (with readiness link)
