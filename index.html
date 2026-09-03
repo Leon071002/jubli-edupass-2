@@ -792,21 +792,27 @@ window.syncToGoogleSheets = async function(visitData) {
 
                         if (data.status === "Awaiting Approval") {
                             showResultPage(`<div class="text-yellow-500 text-5xl mb-2">⏳</div><h2 class="text-xl font-bold text-yellow-400">NOT APPROVED</h2>`);
-                       } else if (data.status === "Pending") {
-                            await updateDoc(doc(db, "visits", d.id), { status: "Checked-In", checkInTime: serverTimestamp() });
+                      } else if (data.status === "Pending") {
+                            const isExpress = data.passType.includes("Express");
+                            const newStatus = isExpress ? "Completed" : "Checked-In";
                             
-                          syncToGoogleSheets({
-                                docId: d.id, // NEW: Needed for the extension link
+                            await updateDoc(doc(db, "visits", d.id), { 
+                                status: newStatus, 
+                                checkInTime: serverTimestamp() 
+                            });
+                            
+                            syncToGoogleSheets({
+                                docId: d.id, 
                                 visitorName: data.visitorName,
                                 hostName: data.hostName || "N/A",
-                                hostEmail: data.hostEmail || "N/A", // NEW: Needed to send the email
+                                hostEmail: data.hostEmail || "N/A",
                                 phone: data.phone,
                                 visitDate: data.visitDate,
                                 startTime: data.startTime,
                                 endTime: data.endTime,
                                 checkInTime: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-                                checkOutTime: "N/A",
-                                status: "Checked-In"
+                                checkOutTime: isExpress ? "Not Required" : "N/A",
+                                status: newStatus
                             });
 
                             showResultPage(`
@@ -818,9 +824,15 @@ window.syncToGoogleSheets = async function(visitData) {
                                     ${data.studentName !== 'N/A' ? `<p><span class="text-gray-400">Student:</span> <span class="text-yellow-300 font-bold">${data.studentName} (${data.studentClass})</span></p>` : `<p><span class="text-gray-400">Host:</span> <span class="text-white font-bold">${data.hostName}</span></p>`}
                                     <p><span class="text-gray-400">Visit Date:</span> <span class="text-white font-bold">${data.visitDate}</span></p>
                                     <p><span class="text-gray-400">Scheduled Time:</span> <span class="text-white font-bold">${data.startTime} - ${data.endTime}</span></p>
-                                    <p><span class="text-gray-400">Host Readiness:</span> <span class="${data.hostAcknowledged ? 'text-green-400 font-bold' : 'text-amber-400 font-bold'}">${data.hostAcknowledged ? '🟢 ACKNOWLEDGED (Ready)' : '🟡 PENDING HOST CONFIRMATION'}</span></p>
+                                    ${!isExpress ? `<p><span class="text-gray-400">Host Readiness:</span> <span class="${data.hostAcknowledged ? 'text-green-400 font-bold' : 'text-amber-400 font-bold'}">${data.hostAcknowledged ? '🟢 ACKNOWLEDGED (Ready)' : '🟡 PENDING HOST CONFIRMATION'}</span></p>` : ''}
                                     <p><span class="text-gray-400">Check-In Time:</span> <span class="text-green-400 font-bold">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></p>
+                                    ${isExpress ? `<p class="text-amber-400 font-bold mt-3 text-center border-t border-gray-700 pt-2">No Check-Out Required</p>` : ''}
                                 </div>`);
+                            } else if (data.status === "Completed") {
+                            showResultPage(`
+                                <div class="text-yellow-500 text-5xl mb-2">⚠️</div>
+                                <h2 class="text-xl font-bold text-yellow-400 mb-2">PASS ALREADY SCANNED</h2>
+                                <p class="text-xs text-gray-400">This express pass has already been used for entry and does not require a check-out scan.</p>`);
                         } else if (data.status === "Checked-In") {
                             const checkOutTimeString = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
                             await updateDoc(doc(db, "visits", d.id), { status: "Checked-Out", checkOutTime: serverTimestamp() });
