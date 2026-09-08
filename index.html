@@ -807,18 +807,19 @@ window.syncToGoogleSheets = async function(visitData) {
                             });
                             
                             syncToGoogleSheets({
-                                docId: d.id, 
-                                visitorName: data.visitorName,
-                                hostName: data.hostName || "N/A",
-                                hostEmail: data.hostEmail || "N/A",
-                                phone: data.phone,
-                                visitDate: data.visitDate,
-                                startTime: data.startTime,
-                                endTime: data.endTime,
-                                checkInTime: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-                                checkOutTime: isExpress ? "Not Required" : "N/A",
-                                status: newStatus
-                            });
+    docId: d.id, 
+    passType: data.passType,   // <-- ADD THIS
+    visitorName: data.visitorName,
+    hostName: data.hostName || "N/A",
+    hostEmail: data.hostEmail || "N/A",
+    phone: data.phone,
+    visitDate: data.visitDate,
+    startTime: data.startTime,
+    endTime: data.endTime,
+    checkInTime: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+    checkOutTime: isExpress ? "Not Required" : "N/A",
+    status: newStatus
+});
 
                             showResultPage(`
                                 <div class="text-green-500 text-5xl mb-1">✅</div>
