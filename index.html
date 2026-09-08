@@ -356,25 +356,33 @@ let isProcessingScan = false;// Prevents double-scanning
                         icon.innerText = "✅";
                         title.innerText = "Readiness Confirmed!";
                         msg.innerText = "Thank you! Security has been notified that you are prepared for this visitor.";
-                   } else if (action === 'extend1h') {
-                        const snap = await getDoc(doc(db, "visits", docId));
-                        if (snap.exists()) {
-                            const data = snap.data();
-                            let currentEndHour = parseInt((data.endTime || "17:00").split(":")[0]);
-                            let newEndHour = (currentEndHour + 1) % 24;
-                            let formattedEnd = (newEndHour < 10 ? '0' : '') + newEndHour + ":00";
+                  } else if (action === 'extend1h') {
+    const snap = await getDoc(doc(db, "visits", docId));
+    if (snap.exists()) {
+        const data = snap.data();
+        let currentEndHour = parseInt((data.endTime || "17:00").split(":")[0]);
+        let newEndHour = (currentEndHour + 1) % 24;
+        let formattedEnd = (newEndHour < 10 ? '0' : '') + newEndHour + ":00";
 
-                            await updateDoc(doc(db, "visits", docId), { 
-                                endTime: formattedEnd, 
-                                extendedCount: (data.extendedCount || 0) + 1,
-                                emailOverdueSent: false // Resets the flag for future overdue checks
-                            });
+        await updateDoc(doc(db, "visits", docId), { 
+            endTime: formattedEnd, 
+            extendedCount: (data.extendedCount || 0) + 1,
+            emailOverdueSent: false
+        });
 
-                            icon.innerText = "⏰";
-                            title.innerText = "Pass Extended by 1 Hour";
-                            msg.innerText = `The visitor's pass end time has been updated to ${formattedEnd}.`;
-                        }
-                    }
+        // NEW: sync the new end time + reset the overdue-email flag in the Sheet,
+        // since processOverdueEmails() reads from the Sheet, not Firestore.
+        syncToGoogleSheets({
+            docId: docId,
+            endTime: formattedEnd,
+            resetOverdueEmail: true
+        });
+
+        icon.innerText = "⏰";
+        title.innerText = "Pass Extended by 1 Hour";
+        msg.innerText = `The visitor's pass end time has been updated to ${formattedEnd}.`;
+    }
+}
                 } catch(e) {
                     title.innerText = "Action Failed";
                     msg.innerText = e.message;
