@@ -789,7 +789,15 @@ window.syncToGoogleSheets = async function(visitData) {
                 // ... (Keep your existing query and verify logic exactly as it is below this line)
 
                 const q = query(collection(db, "visits"), where("visitId", "==", decodedText.trim()));
-                const snaps = await getDocs(q);
+                let snaps;
+try {
+    snaps = await getDocs(q);
+} catch (err) {
+    showResultPage(`<div class="text-red-500 text-5xl mb-2">⚠️</div>
+        <h2 class="text-xl font-bold text-red-400">SCAN ERROR</h2>
+        <p class="text-xs text-gray-400">${err.message}</p>`);
+    return;
+}
 
                 if (snaps.empty) {
                     showResultPage(`<div class="text-red-500 text-5xl mb-2">❌</div><h2 class="text-xl font-bold text-red-400">INVALID PASS</h2>`);
