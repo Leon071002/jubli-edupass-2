@@ -426,15 +426,26 @@ let isProcessingScan = false;// Prevents double-scanning
         };
 
         window.handleLogin = async function() {
-            const email = document.getElementById('login-email').value.trim();
-            const password = document.getElementById('login-password').value.trim();
-            if (!email || !password) return alert("Enter email and password.");
-            try {
-                const userCredential = await signInWithEmailAndPassword(auth, email, password);
-                const userDoc = await getDoc(doc(db, "Users", userCredential.user.uid));
-                if (userDoc.exists()) routeUserToScreen(userDoc.data().role);
-            } catch (error) { alert("Login failed: " + error.message); }
-        };
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value.trim();
+    if (!email || !password) return alert("Enter email and password.");
+    try {
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const userDoc = await getDoc(doc(db, "Users", userCredential.user.uid));
+        if (userDoc.exists()) {
+            routeUserToScreen(userDoc.data().role);
+        } else {
+            alert("Login OK, but no role found for this account. Ask admin to create a Users/" + userCredential.user.uid + " document with a 'role' field.");
+            await signOut(auth);
+        }
+    } catch (error) {
+        if (error.code && error.code.startsWith("auth/")) {
+            alert("Login failed: wrong email or password.");
+        } else {
+            alert("Logged in, but could not read your role (Firestore permission problem): " + error.message);
+        }
+    }
+};
 
         function routeUserToScreen(role) {
             document.getElementById('login-screen').classList.add('hidden');
