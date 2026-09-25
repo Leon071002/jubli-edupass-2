@@ -1,0 +1,7 @@
+{
+  "name": "visitor-pass-reminders",
+  "private": true,
+  "dependencies": {
+    "firebase-admin": "^12.0.0"
+  }
+}
